@@ -1,18 +1,4 @@
-import DatabaseService from './database-service';
-
-export interface ExportData {
-  version: string;
-  exportTime: string;
-  data: {
-    links: any[];
-    clickAnalytics: any[];
-    adminUsers: any[];
-  };
-  stats: {
-    totalLinks: number;
-    totalClicks: number;
-  };
-}
+import DatabaseService, { type ExportData } from './database-service';
 
 export interface ImportResult {
   success: boolean;
@@ -64,4 +50,7 @@ export class DataService {
       throw new Error('获取统计信息失败');
     }
   }
-} 
+}
+
+// 重新导出 ExportData 类型供其他文件使用
+export type { ExportData }; 

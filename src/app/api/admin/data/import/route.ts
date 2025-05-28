@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { data, options } = body;
+    const { data } = body;
 
     // 验证数据格式
     if (!data || typeof data !== 'object') {

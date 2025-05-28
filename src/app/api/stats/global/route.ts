@@ -2,6 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validateSessionFromRequest } from '@/lib/auth';
 import DatabaseService from '@/lib/database-service';
 
+interface TopLink {
+  shortCode: string;
+  originalUrl: string;
+  title?: string | null;
+  clicks: number;
+}
+
+interface DailyClick {
+  clickedAt: string;
+  _count: number;
+}
+
 export async function GET(request: NextRequest) {
   try {
     // 验证会话
@@ -21,13 +33,13 @@ export async function GET(request: NextRequest) {
       total_clicks: stats.totalClicks,
       today_clicks: stats.todayClicks,
       week_clicks: stats.weekClicks,
-      top_links: stats.topLinks.map((link: any) => ({
+      top_links: stats.topLinks.map((link: TopLink) => ({
         short_code: link.shortCode,
         original_url: link.originalUrl,
         title: link.title,
         clicks: link.clicks
       })),
-      daily_clicks: stats.dailyClicks.map((item: any, index: number) => ({
+      daily_clicks: stats.dailyClicks.map((item: DailyClick, index: number) => ({
         date: item.clickedAt,
         clicks: item._count,
         // 使用时间戳和索引生成唯一标识符

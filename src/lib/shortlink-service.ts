@@ -1,29 +1,81 @@
-import { nanoid } from 'nanoid';
 import DatabaseService from './database-service';
+
+interface LinkStats {
+  totalClicks: number;
+  todayClicks: number;
+  weekClicks: number;
+  monthClicks: number;
+  dailyStats: Array<{
+    clickedAt: string;
+    _count: number;
+  }>;
+}
 
 export class ShortLinkService {
   // 生成短链接
+  static generateShortCode(length = 6): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < length; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  }
+
+  // 验证URL格式
+  static isValidUrl(url: string): boolean {
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // 创建短链接
   static async createShortLink(data: {
     original_url: string;
     title?: string;
     description?: string;
     expires_at?: string;
-    custom_code?: string;
     user_ip?: string;
     user_agent?: string;
+    custom_code?: string;
   }) {
-    const short_code = data.custom_code || nanoid(8);
-    
-    // 检查自定义代码是否已存在
-    if (data.custom_code) {
-      const existing = await this.getLinkByShortCode(data.custom_code);
-      if (existing) {
-        throw new Error('自定义短码已存在');
-      }
+    if (!this.isValidUrl(data.original_url)) {
+      throw new Error('无效的URL格式');
     }
 
+    // 生成唯一的短代码
+    let shortCode: string;
+    let attempts = 0;
+    const maxAttempts = 10;
+
+    // 如果提供了自定义代码，先检查是否可用
+    if (data.custom_code) {
+      const existing = await DatabaseService.getLinkByShortCode(data.custom_code);
+      if (existing) {
+        throw new Error('自定义短代码已存在');
+      }
+      shortCode = data.custom_code;
+    } else {
+      // 生成随机短代码
+      do {
+        shortCode = this.generateShortCode();
+        const existing = await DatabaseService.getLinkByShortCode(shortCode);
+        if (!existing) break;
+        
+        attempts++;
+        if (attempts >= maxAttempts) {
+          shortCode = this.generateShortCode(8); // 增加长度
+          break;
+        }
+      } while (attempts < maxAttempts);
+    }
+
+    // 创建链接记录
     return await DatabaseService.createLink({
-      shortCode: short_code,
+      shortCode,
       originalUrl: data.original_url,
       title: data.title,
       description: data.description,
@@ -86,7 +138,7 @@ export class ShortLinkService {
   }
 
   // 获取链接统计
-  static async getLinkStats(link_id: number) {
+  static async getLinkStats(link_id: number): Promise<LinkStats> {
     return await DatabaseService.getLinkStats(link_id);
   }
 

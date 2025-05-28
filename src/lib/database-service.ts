@@ -36,6 +36,20 @@ export interface AdminUser {
   updatedAt: Date
 }
 
+export interface ExportData {
+  version: string
+  exportTime: string
+  data: {
+    links: Link[]
+    clickAnalytics: ClickAnalytics[]
+    adminUsers: AdminUser[]
+  }
+  stats: {
+    totalLinks: number
+    totalClicks: number
+  }
+}
+
 export class DatabaseService {
   // 链接相关操作
   static async createLink(data: {
@@ -331,7 +345,7 @@ export class DatabaseService {
     }
   }
 
-  static async importData(data: any) {
+  static async importData(data: ExportData) {
     // 在事务中执行导入
     return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       let imported = 0
@@ -340,21 +354,22 @@ export class DatabaseService {
       // 导入链接
       for (const link of data.data.links || []) {
         try {
+          const linkData = link as unknown as Record<string, unknown>;
           await tx.link.upsert({
-            where: { shortCode: link.shortCode },
+            where: { shortCode: linkData.shortCode as string },
             update: {},
             create: {
-              shortCode: link.shortCode,
-              originalUrl: link.originalUrl,
-              title: link.title,
-              description: link.description,
-              clicks: link.clicks || 0,
-              createdAt: new Date(link.createdAt),
-              updatedAt: new Date(link.updatedAt),
-              expiresAt: link.expiresAt ? new Date(link.expiresAt) : null,
-              isActive: link.isActive ?? true,
-              userIp: link.userIp,
-              userAgent: link.userAgent,
+              shortCode: linkData.shortCode as string,
+              originalUrl: linkData.originalUrl as string,
+              title: linkData.title as string | undefined,
+              description: linkData.description as string | undefined,
+              clicks: (linkData.clicks as number) || 0,
+              createdAt: new Date(linkData.createdAt as string),
+              updatedAt: new Date(linkData.updatedAt as string),
+              expiresAt: linkData.expiresAt ? new Date(linkData.expiresAt as string) : null,
+              isActive: (linkData.isActive as boolean) ?? true,
+              userIp: linkData.userIp as string | undefined,
+              userAgent: linkData.userAgent as string | undefined,
             },
           })
           imported++

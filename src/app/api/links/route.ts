@@ -1,6 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ShortLinkService } from '@/lib/shortlink-service';
 import { validateSessionFromRequest } from '@/lib/auth';
+import DatabaseService from '@/lib/database-service';
+
+interface LinkData {
+  id: number;
+  shortCode: string;
+  originalUrl: string;
+  title?: string | null;
+  description?: string | null;
+  clicks: number;
+  createdAt: Date;
+  updatedAt: Date;
+  expiresAt?: Date | null;
+  isActive: boolean;
+  userIp?: string | null;
+  userAgent?: string | null;
+}
 
 // 数据转换函数：将 Prisma 数据转换为前端期望的格式
 function transformLinkData(link: any) {
@@ -22,7 +38,7 @@ function transformLinkData(link: any) {
 
 export async function GET(request: NextRequest) {
   try {
-    // 验证管理员权限
+    // 验证会话
     if (!validateSessionFromRequest(request)) {
       return NextResponse.json({
         success: false,
@@ -32,21 +48,38 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
+    const limit = parseInt(searchParams.get('limit') || '20');
 
-    const result = await ShortLinkService.getAllLinks(page, limit);
-    
-    // 转换数据格式
-    const transformedResult = {
-      ...result,
-      links: result.links.map(transformLinkData)
-    };
-    
+    const result = await DatabaseService.getAllLinks(page, limit);
+
+    // 转换数据格式以匹配前端期望
+    const transformedLinks = result.links.map((link: LinkData) => ({
+      id: link.id,
+      short_code: link.shortCode,
+      original_url: link.originalUrl,
+      title: link.title,
+      description: link.description,
+      clicks: link.clicks,
+      created_at: link.createdAt.toISOString(),
+      updated_at: link.updatedAt.toISOString(),
+      expires_at: link.expiresAt?.toISOString() || null,
+      is_active: link.isActive,
+      user_ip: link.userIp,
+      user_agent: link.userAgent
+    }));
+
     return NextResponse.json({
       success: true,
-      data: transformedResult
+      data: {
+        links: transformedLinks,
+        total: result.total,
+        pages: result.pages,
+        currentPage: result.currentPage
+      }
     });
-  } catch {
+
+  } catch (error) {
+    console.error('获取链接列表失败:', error);
     return NextResponse.json({
       success: false,
       error: '获取链接列表失败'

@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ShortLinkService } from '@/lib/shortlink-service';
 import { validateSessionFromRequest } from '@/lib/auth';
+import DatabaseService from '@/lib/database-service';
+
+interface RouteParams {
+  params: Promise<{ id: string }>
+}
 
 // 数据转换函数：将 Prisma 数据转换为前端期望的格式
 function transformLinkData(link: any) {
@@ -32,10 +37,10 @@ function transformLinkData(link: any) {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: RouteParams
 ) {
   try {
-    // 验证管理员权限
+    // 验证会话
     if (!validateSessionFromRequest(request)) {
       return NextResponse.json({
         success: false,
@@ -44,7 +49,16 @@ export async function GET(
     }
 
     const { id } = await params;
-    const link = await ShortLinkService.getLinkById(parseInt(id));
+    const linkId = parseInt(id);
+
+    if (isNaN(linkId)) {
+      return NextResponse.json({
+        success: false,
+        error: '无效的链接ID'
+      }, { status: 400 });
+    }
+
+    const link = await DatabaseService.getLinkById(linkId);
 
     if (!link) {
       return NextResponse.json({
@@ -53,14 +67,42 @@ export async function GET(
       }, { status: 404 });
     }
 
+    // 转换数据格式以匹配前端期望
+    const transformedLink = {
+      id: link.id,
+      short_code: link.shortCode,
+      original_url: link.originalUrl,
+      title: link.title,
+      description: link.description,
+      clicks: link.clicks,
+      created_at: link.createdAt.toISOString(),
+      updated_at: link.updatedAt.toISOString(),
+      expires_at: link.expiresAt?.toISOString() || null,
+      is_active: link.isActive,
+      user_ip: link.userIp,
+      user_agent: link.userAgent,
+      click_analytics: link.clickAnalytics?.map(click => ({
+        id: click.id,
+        link_id: click.linkId,
+        clicked_at: click.clickedAt.toISOString(),
+        ip_address: click.ipAddress,
+        user_agent: click.userAgent,
+        referer: click.referer,
+        country: click.country,
+        city: click.city
+      })) || []
+    };
+
     return NextResponse.json({
       success: true,
-      data: transformLinkData(link)
+      data: transformedLink
     });
-  } catch {
+
+  } catch (error) {
+    console.error('获取链接详情失败:', error);
     return NextResponse.json({
       success: false,
-      error: '获取链接失败'
+      error: '获取链接详情失败'
     }, { status: 500 });
   }
 }
@@ -96,10 +138,10 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: RouteParams
 ) {
   try {
-    // 验证管理员权限
+    // 验证会话
     if (!validateSessionFromRequest(request)) {
       return NextResponse.json({
         success: false,
@@ -108,20 +150,24 @@ export async function DELETE(
     }
 
     const { id } = await params;
-    const success = await ShortLinkService.deleteLink(parseInt(id));
+    const linkId = parseInt(id);
 
-    if (!success) {
+    if (isNaN(linkId)) {
       return NextResponse.json({
         success: false,
-        error: '链接不存在'
-      }, { status: 404 });
+        error: '无效的链接ID'
+      }, { status: 400 });
     }
+
+    await DatabaseService.deleteLink(linkId);
 
     return NextResponse.json({
       success: true,
-      message: '链接已删除'
+      message: '链接删除成功'
     });
-  } catch {
+
+  } catch (error) {
+    console.error('删除链接失败:', error);
     return NextResponse.json({
       success: false,
       error: '删除链接失败'
