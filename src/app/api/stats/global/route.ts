@@ -15,16 +15,11 @@ interface DailyClick {
 }
 
 export async function GET(request: NextRequest) {
-  console.log('[API] /api/stats/global - 开始处理请求');
-  
   try {
     // 验证会话
-    console.log('[API] 验证会话中...');
     const isValidSession = validateSessionFromRequest(request);
-    console.log('[API] 会话验证结果:', isValidSession);
     
     if (!isValidSession) {
-      console.log('[API] 会话验证失败，返回 401');
       return NextResponse.json({
         success: false,
         error: '未授权访问'
@@ -32,12 +27,8 @@ export async function GET(request: NextRequest) {
     }
 
     // 获取全局统计数据
-    console.log('[API] 开始获取全局统计数据...');
     const stats = await DatabaseService.getGlobalStats();
-    console.log('[API] 原始统计数据:', JSON.stringify(stats, null, 2));
 
-    // 转换数据格式以匹配前端组件期望的结构
-    console.log('[API] 开始转换数据格式...');
     const transformedStats = {
       total_links: stats.totalLinks,
       total_clicks: stats.totalClicks,
@@ -57,9 +48,6 @@ export async function GET(request: NextRequest) {
       }))
     };
     
-    console.log('[API] 转换后的统计数据:', JSON.stringify(transformedStats, null, 2));
-
-    console.log('[API] 成功返回统计数据');
     return NextResponse.json({
       success: true,
       data: transformedStats

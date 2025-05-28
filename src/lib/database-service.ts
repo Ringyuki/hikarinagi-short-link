@@ -247,10 +247,8 @@ export class DatabaseService {
 
   // 全局统计
   static async getGlobalStats() {
-    console.log('[DB] getGlobalStats - 开始获取全局统计数据');
     
     try {
-      console.log('[DB] 开始并行查询基础统计数据...');
       const [totalLinks, activeLinks, inactiveLinks, totalClicks, totalClickRecords, todayClicks, weekClicks] = await Promise.all([
         prisma.link.count(),
         prisma.link.count({
@@ -276,18 +274,7 @@ export class DatabaseService {
           },
         }),
       ])
-      
-      console.log('[DB] 基础统计数据:', {
-        totalLinks,
-        activeLinks,
-        inactiveLinks,
-        totalClicks,
-        totalClickRecords,
-        todayClicks,
-        weekClicks
-      });
 
-      console.log('[DB] 开始查询热门链接...');
       const topLinks = await prisma.link.findMany({
         where: { isActive: true },
         orderBy: { clicks: 'desc' },
@@ -299,12 +286,8 @@ export class DatabaseService {
           clicks: true,
         },
       })
-      console.log('[DB] 热门链接数量:', topLinks.length);
 
-      // 使用原生 SQL 按日期分组统计点击数
-      console.log('[DB] 开始查询每日点击统计...');
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-      console.log('[DB] 查询时间范围: 从', thirtyDaysAgo.toISOString(), '到现在');
       
       const dailyClicksRaw = await prisma.$queryRaw`
         SELECT 
@@ -315,17 +298,12 @@ export class DatabaseService {
         GROUP BY DATE(clicked_at)
         ORDER BY DATE(clicked_at) ASC
       ` as Array<{ date: Date; count: bigint }>
-      
-      console.log('[DB] 原始每日点击数据:', dailyClicksRaw);
 
-      // 转换数据格式
       const dailyClicks = dailyClicksRaw.map(item => ({
         clickedAt: item.date.toISOString(),
         _count: Number(item.count)
       }))
       
-      console.log('[DB] 转换后的每日点击数据:', dailyClicks);
-
       const result = {
         totalLinks,
         activeLinks,
@@ -338,7 +316,6 @@ export class DatabaseService {
         dailyClicks,
       }
       
-      console.log('[DB] getGlobalStats - 完成，返回结果');
       return result;
     } catch (error) {
       console.error('[DB] getGlobalStats - 发生错误:', error);
