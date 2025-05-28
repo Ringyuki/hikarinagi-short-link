@@ -1,4 +1,4 @@
-# 短链接管理系统
+# Hikarinagi Short Link
 
 为Hikarinagi设计的私有短链接生成和管理平台，基于 Next.js 15 构建。
 
