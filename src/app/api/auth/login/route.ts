@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateCredentials, createSession } from '@/lib/auth';
+import { initializeAdmin } from '@/lib/init-admin';
 
 export async function POST(request: NextRequest) {
   console.log('[API] /api/auth/login - 开始处理登录请求');
   
   try {
+    // 首先初始化管理员账户（如果不存在）
+    await initializeAdmin();
+    
     console.log('[API] 解析请求体...');
     const { username, password } = await request.json();
     console.log('[API] 用户名:', username, '密码长度:', password?.length || 0);

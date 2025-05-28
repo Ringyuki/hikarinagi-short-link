@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 3001",
-    "build": "prisma generate && next build",
-    "start": "next start --port 3001",
+    "dev": "next dev",
+    "build": "prisma generate && prisma db push && next build",
+    "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
     "deploy:vercel": "vercel --prod",
@@ -15,7 +15,8 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "db:reset": "prisma migrate reset"
   },
   "dependencies": {
     "@prisma/client": "^6.8.2",

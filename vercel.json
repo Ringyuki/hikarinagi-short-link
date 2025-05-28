@@ -1,11 +1,15 @@
 {
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "framework": "nextjs",
   "functions": {
-    "src/app/api/**/*.ts": {
+    "app/api/**/*.ts": {
       "maxDuration": 30
     }
   },
   "regions": ["hkg1"],
   "env": {
-    "NODE_ENV": "production"
+    "NODE_ENV": "production",
+    "PRISMA_GENERATE_DATAPROXY": "true"
   }
 } 

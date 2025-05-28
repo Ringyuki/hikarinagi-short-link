@@ -2,11 +2,13 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: 'standalone',
-  serverExternalPackages: ['better-sqlite3'],
-  webpack: (config) => {
-    config.externals.push({
-      'better-sqlite3': 'commonjs better-sqlite3',
-    });
+  experimental: {
+    serverComponentsExternalPackages: ['@prisma/client', 'prisma']
+  },
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.externals.push('_http_common');
+    }
     return config;
   },
 };
