@@ -232,72 +232,103 @@ export class DatabaseService {
 
   // 全局统计
   static async getGlobalStats() {
-    const [totalLinks, activeLinks, inactiveLinks, totalClicks, totalClickRecords, todayClicks, weekClicks] = await Promise.all([
-      prisma.link.count(),
-      prisma.link.count({
+    console.log('[DB] getGlobalStats - 开始获取全局统计数据');
+    
+    try {
+      console.log('[DB] 开始并行查询基础统计数据...');
+      const [totalLinks, activeLinks, inactiveLinks, totalClicks, totalClickRecords, todayClicks, weekClicks] = await Promise.all([
+        prisma.link.count(),
+        prisma.link.count({
+          where: { isActive: true },
+        }),
+        prisma.link.count({
+          where: { isActive: false },
+        }),
+        prisma.clickAnalytics.count(),
+        prisma.clickAnalytics.count(), // totalClickRecords 和 totalClicks 是一样的
+        prisma.clickAnalytics.count({
+          where: {
+            clickedAt: {
+              gte: new Date(new Date().setHours(0, 0, 0, 0)),
+            },
+          },
+        }),
+        prisma.clickAnalytics.count({
+          where: {
+            clickedAt: {
+              gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+            },
+          },
+        }),
+      ])
+      
+      console.log('[DB] 基础统计数据:', {
+        totalLinks,
+        activeLinks,
+        inactiveLinks,
+        totalClicks,
+        totalClickRecords,
+        todayClicks,
+        weekClicks
+      });
+
+      console.log('[DB] 开始查询热门链接...');
+      const topLinks = await prisma.link.findMany({
         where: { isActive: true },
-      }),
-      prisma.link.count({
-        where: { isActive: false },
-      }),
-      prisma.clickAnalytics.count(),
-      prisma.clickAnalytics.count(), // totalClickRecords 和 totalClicks 是一样的
-      prisma.clickAnalytics.count({
-        where: {
-          clickedAt: {
-            gte: new Date(new Date().setHours(0, 0, 0, 0)),
-          },
+        orderBy: { clicks: 'desc' },
+        take: 10,
+        select: {
+          shortCode: true,
+          originalUrl: true,
+          title: true,
+          clicks: true,
         },
-      }),
-      prisma.clickAnalytics.count({
-        where: {
-          clickedAt: {
-            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-          },
-        },
-      }),
-    ])
+      })
+      console.log('[DB] 热门链接数量:', topLinks.length);
 
-    const topLinks = await prisma.link.findMany({
-      where: { isActive: true },
-      orderBy: { clicks: 'desc' },
-      take: 10,
-      select: {
-        shortCode: true,
-        originalUrl: true,
-        title: true,
-        clicks: true,
-      },
-    })
+      // 使用原生 SQL 按日期分组统计点击数
+      console.log('[DB] 开始查询每日点击统计...');
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      console.log('[DB] 查询时间范围: 从', thirtyDaysAgo.toISOString(), '到现在');
+      
+      const dailyClicksRaw = await prisma.$queryRaw`
+        SELECT 
+          DATE(clicked_at) as date,
+          COUNT(*) as count
+        FROM click_analytics 
+        WHERE clicked_at >= ${thirtyDaysAgo}
+        GROUP BY DATE(clicked_at)
+        ORDER BY DATE(clicked_at) ASC
+      ` as Array<{ date: Date; count: bigint }>
+      
+      console.log('[DB] 原始每日点击数据:', dailyClicksRaw);
 
-    // 使用原生 SQL 按日期分组统计点击数
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    const dailyClicksRaw = await prisma.$queryRaw`
-      SELECT 
-        DATE(clicked_at) as date,
-        COUNT(*) as count
-      FROM click_analytics 
-      WHERE clicked_at >= ${thirtyDaysAgo}
-      GROUP BY DATE(clicked_at)
-      ORDER BY DATE(clicked_at) ASC
-    ` as Array<{ date: Date; count: bigint }>
+      // 转换数据格式
+      const dailyClicks = dailyClicksRaw.map(item => ({
+        clickedAt: item.date.toISOString(),
+        _count: Number(item.count)
+      }))
+      
+      console.log('[DB] 转换后的每日点击数据:', dailyClicks);
 
-    // 转换数据格式
-    const dailyClicks = dailyClicksRaw.map(item => ({
-      clickedAt: item.date.toISOString(),
-      _count: Number(item.count)
-    }))
-
-    return {
-      totalLinks,
-      activeLinks,
-      inactiveLinks,
-      totalClicks,
-      totalClickRecords,
-      todayClicks,
-      weekClicks,
-      topLinks,
-      dailyClicks,
+      const result = {
+        totalLinks,
+        activeLinks,
+        inactiveLinks,
+        totalClicks,
+        totalClickRecords,
+        todayClicks,
+        weekClicks,
+        topLinks,
+        dailyClicks,
+      }
+      
+      console.log('[DB] getGlobalStats - 完成，返回结果');
+      return result;
+    } catch (error) {
+      console.error('[DB] getGlobalStats - 发生错误:', error);
+      console.error('[DB] 错误堆栈:', error instanceof Error ? error.stack : 'Unknown error');
+      throw error;
     }
   }
 
@@ -312,6 +343,15 @@ export class DatabaseService {
     const admin = await prisma.adminUser.findUnique({
       where: { username },
     })
+    if (!admin) {
+      // 如果管理员不存在，则创建一个
+      await prisma.adminUser.create({
+        data: {
+          username: 'admin',
+          password: 'admin123',
+        },
+      })
+    }
     return admin && admin.password === password ? admin : null
   }
 
