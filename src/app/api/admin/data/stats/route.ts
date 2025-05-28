@@ -11,19 +11,12 @@ export async function GET(request: NextRequest) {
     }
 
     // 获取数据库统计信息
-    const stats = DataService.getDatabaseStats();
+    const stats = await DataService.getDatabaseStats();
 
-    if (stats) {
-      return NextResponse.json({
-        success: true,
-        stats
-      });
-    } else {
-      return NextResponse.json(
-        { error: '获取统计信息失败' },
-        { status: 500 }
-      );
-    }
+    return NextResponse.json({
+      success: true,
+      stats
+    });
 
   } catch (error) {
     console.error('获取数据库统计失败:', error);

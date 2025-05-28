@@ -19,13 +19,14 @@ export async function POST(request: NextRequest) {
     }
 
     // 导入数据
-    const result = DataService.importData(data as ExportData, options);
+    const result = await DataService.importData(data as ExportData);
 
     if (result.success) {
       return NextResponse.json({
         success: true,
         message: result.message,
         imported: result.imported,
+        skipped: result.skipped,
         errors: result.errors
       });
     } else {

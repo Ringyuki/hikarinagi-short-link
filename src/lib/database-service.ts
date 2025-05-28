@@ -1,0 +1,388 @@
+import prisma from './prisma'
+import type { Prisma } from '../generated/prisma'
+
+// 简化的类型定义
+export interface Link {
+  id: number
+  shortCode: string
+  originalUrl: string
+  title?: string | null
+  description?: string | null
+  clicks: number
+  createdAt: Date
+  updatedAt: Date
+  expiresAt?: Date | null
+  isActive: boolean
+  userIp?: string | null
+  userAgent?: string | null
+}
+
+export interface ClickAnalytics {
+  id: number
+  linkId: number
+  clickedAt: Date
+  ipAddress?: string | null
+  userAgent?: string | null
+  referer?: string | null
+  country?: string | null
+  city?: string | null
+}
+
+export interface AdminUser {
+  id: number
+  username: string
+  password: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+export class DatabaseService {
+  // 链接相关操作
+  static async createLink(data: {
+    shortCode: string
+    originalUrl: string
+    title?: string
+    description?: string
+    expiresAt?: Date
+    userIp?: string
+    userAgent?: string
+  }) {
+    return await prisma.link.create({
+      data: {
+        shortCode: data.shortCode,
+        originalUrl: data.originalUrl,
+        title: data.title,
+        description: data.description,
+        expiresAt: data.expiresAt,
+        userIp: data.userIp,
+        userAgent: data.userAgent,
+      },
+    })
+  }
+
+  static async getLinkByShortCode(shortCode: string) {
+    return await prisma.link.findUnique({
+      where: { shortCode },
+    })
+  }
+
+  static async getLinkById(id: number) {
+    return await prisma.link.findUnique({
+      where: { id },
+      include: {
+        clickAnalytics: {
+          orderBy: { clickedAt: 'desc' },
+          take: 100, // 最近100次点击
+        },
+      },
+    })
+  }
+
+  static async getAllLinks(page = 1, limit = 20) {
+    const skip = (page - 1) * limit
+    
+    const [links, total] = await Promise.all([
+      prisma.link.findMany({
+        where: { isActive: true },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.link.count({
+        where: { isActive: true },
+      }),
+    ])
+
+    return {
+      links,
+      total,
+      pages: Math.ceil(total / limit),
+      currentPage: page,
+    }
+  }
+
+  static async updateLinkClicks(id: number) {
+    return await prisma.link.update({
+      where: { id },
+      data: {
+        clicks: { increment: 1 },
+        updatedAt: new Date(),
+      },
+    })
+  }
+
+  static async deleteLink(id: number) {
+    return await prisma.link.update({
+      where: { id },
+      data: { isActive: false },
+    })
+  }
+
+  static async cleanupInactiveLinks() {
+    const result = await prisma.link.deleteMany({
+      where: {
+        OR: [
+          { isActive: false },
+          {
+            expiresAt: {
+              lt: new Date(),
+            },
+          },
+        ],
+      },
+    })
+    return result.count
+  }
+
+  // 点击分析相关操作
+  static async recordClick(linkId: number, data: {
+    ipAddress?: string
+    userAgent?: string
+    referer?: string
+    country?: string
+    city?: string
+  }) {
+    return await prisma.clickAnalytics.create({
+      data: {
+        linkId,
+        ipAddress: data.ipAddress,
+        userAgent: data.userAgent,
+        referer: data.referer,
+        country: data.country,
+        city: data.city,
+      },
+    })
+  }
+
+  static async getLinkStats(linkId: number) {
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+
+    const [totalClicks, todayClicks, weekClicks, monthClicks] = await Promise.all([
+      prisma.clickAnalytics.count({
+        where: { linkId },
+      }),
+      prisma.clickAnalytics.count({
+        where: {
+          linkId,
+          clickedAt: {
+            gte: today,
+          },
+        },
+      }),
+      prisma.clickAnalytics.count({
+        where: {
+          linkId,
+          clickedAt: {
+            gte: weekAgo,
+          },
+        },
+      }),
+      prisma.clickAnalytics.count({
+        where: {
+          linkId,
+          clickedAt: {
+            gte: monthAgo,
+          },
+        },
+      }),
+    ])
+
+    // 使用原生 SQL 按日期分组统计特定链接的点击数
+    const dailyStatsRaw = await prisma.$queryRaw`
+      SELECT 
+        DATE(clicked_at) as date,
+        COUNT(*) as count
+      FROM click_analytics 
+      WHERE link_id = ${linkId} AND clicked_at >= ${monthAgo}
+      GROUP BY DATE(clicked_at)
+      ORDER BY DATE(clicked_at) ASC
+    ` as Array<{ date: Date; count: bigint }>
+
+    // 转换数据格式
+    const dailyStats = dailyStatsRaw.map(item => ({
+      clickedAt: item.date.toISOString(),
+      _count: Number(item.count)
+    }))
+
+    return {
+      totalClicks,
+      todayClicks,
+      weekClicks,
+      monthClicks,
+      dailyStats,
+    }
+  }
+
+  // 全局统计
+  static async getGlobalStats() {
+    const [totalLinks, activeLinks, inactiveLinks, totalClicks, totalClickRecords, todayClicks, weekClicks] = await Promise.all([
+      prisma.link.count(),
+      prisma.link.count({
+        where: { isActive: true },
+      }),
+      prisma.link.count({
+        where: { isActive: false },
+      }),
+      prisma.clickAnalytics.count(),
+      prisma.clickAnalytics.count(), // totalClickRecords 和 totalClicks 是一样的
+      prisma.clickAnalytics.count({
+        where: {
+          clickedAt: {
+            gte: new Date(new Date().setHours(0, 0, 0, 0)),
+          },
+        },
+      }),
+      prisma.clickAnalytics.count({
+        where: {
+          clickedAt: {
+            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+          },
+        },
+      }),
+    ])
+
+    const topLinks = await prisma.link.findMany({
+      where: { isActive: true },
+      orderBy: { clicks: 'desc' },
+      take: 10,
+      select: {
+        shortCode: true,
+        originalUrl: true,
+        title: true,
+        clicks: true,
+      },
+    })
+
+    // 使用原生 SQL 按日期分组统计点击数
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    const dailyClicksRaw = await prisma.$queryRaw`
+      SELECT 
+        DATE(clicked_at) as date,
+        COUNT(*) as count
+      FROM click_analytics 
+      WHERE clicked_at >= ${thirtyDaysAgo}
+      GROUP BY DATE(clicked_at)
+      ORDER BY DATE(clicked_at) ASC
+    ` as Array<{ date: Date; count: bigint }>
+
+    // 转换数据格式
+    const dailyClicks = dailyClicksRaw.map(item => ({
+      clickedAt: item.date.toISOString(),
+      _count: Number(item.count)
+    }))
+
+    return {
+      totalLinks,
+      activeLinks,
+      inactiveLinks,
+      totalClicks,
+      totalClickRecords,
+      todayClicks,
+      weekClicks,
+      topLinks,
+      dailyClicks,
+    }
+  }
+
+  // 管理员相关操作
+  static async getAdminUser(username: string) {
+    return await prisma.adminUser.findUnique({
+      where: { username },
+    })
+  }
+
+  static async validateAdmin(username: string, password: string) {
+    const admin = await prisma.adminUser.findUnique({
+      where: { username },
+    })
+    return admin && admin.password === password ? admin : null
+  }
+
+  static async changeAdminPassword(username: string, newPassword: string) {
+    return await prisma.adminUser.update({
+      where: { username },
+      data: { password: newPassword },
+    })
+  }
+
+  // 数据导入导出
+  static async exportData() {
+    const [links, clickAnalytics, adminUsers] = await Promise.all([
+      prisma.link.findMany(),
+      prisma.clickAnalytics.findMany(),
+      prisma.adminUser.findMany(),
+    ])
+
+    return {
+      version: '1.0',
+      exportTime: new Date().toISOString(),
+      data: {
+        links,
+        clickAnalytics,
+        adminUsers,
+      },
+      stats: {
+        totalLinks: links.length,
+        totalClicks: clickAnalytics.length,
+      },
+    }
+  }
+
+  static async importData(data: any) {
+    // 在事务中执行导入
+    return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      let imported = 0
+      let skipped = 0
+
+      // 导入链接
+      for (const link of data.data.links || []) {
+        try {
+          await tx.link.upsert({
+            where: { shortCode: link.shortCode },
+            update: {},
+            create: {
+              shortCode: link.shortCode,
+              originalUrl: link.originalUrl,
+              title: link.title,
+              description: link.description,
+              clicks: link.clicks || 0,
+              createdAt: new Date(link.createdAt),
+              updatedAt: new Date(link.updatedAt),
+              expiresAt: link.expiresAt ? new Date(link.expiresAt) : null,
+              isActive: link.isActive ?? true,
+              userIp: link.userIp,
+              userAgent: link.userAgent,
+            },
+          })
+          imported++
+        } catch {
+          skipped++
+        }
+      }
+
+      return { imported, skipped }
+    })
+  }
+
+  // 初始化默认管理员
+  static async initializeDefaultAdmin() {
+    const existingAdmin = await prisma.adminUser.findUnique({
+      where: { username: 'admin' },
+    })
+
+    if (!existingAdmin) {
+      await prisma.adminUser.create({
+        data: {
+          username: 'admin',
+          password: 'admin123',
+        },
+      })
+      console.log('默认管理员账号已创建: admin/admin123')
+    }
+  }
+}
+
+export default DatabaseService 

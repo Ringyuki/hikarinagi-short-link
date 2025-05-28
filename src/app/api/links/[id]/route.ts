@@ -2,6 +2,34 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ShortLinkService } from '@/lib/shortlink-service';
 import { validateSessionFromRequest } from '@/lib/auth';
 
+// 数据转换函数：将 Prisma 数据转换为前端期望的格式
+function transformLinkData(link: any) {
+  return {
+    id: link.id,
+    short_code: link.shortCode,
+    original_url: link.originalUrl,
+    title: link.title,
+    description: link.description,
+    clicks: link.clicks,
+    created_at: link.createdAt.toISOString(),
+    updated_at: link.updatedAt.toISOString(),
+    expires_at: link.expiresAt ? link.expiresAt.toISOString() : null,
+    is_active: link.isActive,
+    user_ip: link.userIp,
+    user_agent: link.userAgent,
+    clickAnalytics: link.clickAnalytics ? link.clickAnalytics.map((click: any) => ({
+      id: click.id,
+      linkId: click.linkId,
+      clickedAt: click.clickedAt.toISOString(),
+      ipAddress: click.ipAddress,
+      userAgent: click.userAgent,
+      referer: click.referer,
+      country: click.country,
+      city: click.city
+    })) : undefined
+  };
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -16,7 +44,7 @@ export async function GET(
     }
 
     const { id } = await params;
-    const link = ShortLinkService.getLinkById(parseInt(id));
+    const link = await ShortLinkService.getLinkById(parseInt(id));
 
     if (!link) {
       return NextResponse.json({
@@ -27,7 +55,7 @@ export async function GET(
 
     return NextResponse.json({
       success: true,
-      data: link
+      data: transformLinkData(link)
     });
   } catch {
     return NextResponse.json({
@@ -53,19 +81,11 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
-    const link = ShortLinkService.updateLink(parseInt(id), body);
-
-    if (!link) {
-      return NextResponse.json({
-        success: false,
-        error: '链接不存在'
-      }, { status: 404 });
-    }
-
+    // 暂时返回错误，因为 updateLink 方法还未实现
     return NextResponse.json({
-      success: true,
-      data: link
-    });
+      success: false,
+      error: '更新功能暂未实现'
+    }, { status: 501 });
   } catch {
     return NextResponse.json({
       success: false,
@@ -88,7 +108,7 @@ export async function DELETE(
     }
 
     const { id } = await params;
-    const success = ShortLinkService.deleteLink(parseInt(id));
+    const success = await ShortLinkService.deleteLink(parseInt(id));
 
     if (!success) {
       return NextResponse.json({

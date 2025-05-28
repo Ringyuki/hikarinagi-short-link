@@ -13,7 +13,7 @@ export async function GET(
       return new Response('Not Found', { status: 404 });
     }
     
-    const link = ShortLinkService.getLinkByShortCode(shortCode);
+    const link = await ShortLinkService.getLinkByShortCode(shortCode);
 
     if (!link) {
       return NextResponse.redirect(new URL('/not-found', request.url));
@@ -31,14 +31,14 @@ export async function GET(
     const userAgent = request.headers.get('user-agent') || 'unknown';
     const referer = request.headers.get('referer') || '';
 
-    ShortLinkService.recordClick(link.id, {
+    await ShortLinkService.recordClick(link.id, {
       ip_address: clientIP,
       user_agent: userAgent,
       referer: referer
     });
 
-    // 重定向到原始链接
-    return NextResponse.redirect(link.original_url);
+    // 重定向到原始链接（使用 Prisma 返回的字段名）
+    return NextResponse.redirect(link.originalUrl);
   } catch {
     return NextResponse.redirect(new URL('/error', request.url));
   }

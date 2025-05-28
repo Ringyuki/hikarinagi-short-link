@@ -1,30 +1,27 @@
 import { cookies } from 'next/headers';
 import { NextRequest } from 'next/server';
-import db, { AdminUser } from './database';
+import DatabaseService from './database-service';
 
 // 会话密钥
 const SESSION_KEY = 'admin_session';
 const SESSION_DURATION = 24 * 60 * 60 * 1000; // 24小时
 
 // 验证登录凭据
-export function validateCredentials(username: string, password: string): boolean {
-  const stmt = db.prepare('SELECT * FROM admin_users WHERE username = ? AND password = ?');
-  const user = stmt.get(username, password) as AdminUser | undefined;
+export async function validateCredentials(username: string, password: string): Promise<boolean> {
+  const user = await DatabaseService.validateAdmin(username, password);
   return !!user;
 }
 
 // 获取管理员用户
-export function getAdminUser(username: string): AdminUser | null {
-  const stmt = db.prepare('SELECT * FROM admin_users WHERE username = ?');
-  return stmt.get(username) as AdminUser | null;
+export async function getAdminUser(username: string) {
+  return await DatabaseService.getAdminUser(username);
 }
 
 // 更新管理员密码
-export function updateAdminPassword(username: string, newPassword: string): boolean {
+export async function updateAdminPassword(username: string, newPassword: string): Promise<boolean> {
   try {
-    const stmt = db.prepare('UPDATE admin_users SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE username = ?');
-    const result = stmt.run(newPassword, username);
-    return result.changes > 0;
+    await DatabaseService.changeAdminPassword(username, newPassword);
+    return true;
   } catch {
     return false;
   }

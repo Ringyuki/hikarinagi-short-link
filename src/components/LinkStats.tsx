@@ -49,7 +49,10 @@ export function LinkStats({ linkId }: LinkStatsProps) {
     return <div className="text-center py-8">无法加载统计数据</div>;
   }
 
-  const chartData = stats.click_history.map(item => ({
+  // 确保 click_history 存在且为数组
+  const clickHistory = stats.click_history || [];
+  
+  const chartData = clickHistory.map(item => ({
     date: new Date(item.date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }),
     clicks: item.clicks
   })).reverse();
@@ -134,10 +137,10 @@ export function LinkStats({ linkId }: LinkStatsProps) {
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            {stats.click_history.length === 0 ? (
+            {clickHistory.length === 0 ? (
               <p className="text-gray-500">暂无点击数据</p>
             ) : (
-              stats.click_history.slice(0, 10).map((item, index) => (
+              clickHistory.slice(0, 10).map((item, index) => (
                 <div key={index} className="flex justify-between items-center py-2 border-b">
                   <span className="text-sm text-gray-600">
                     {new Date(item.date).toLocaleDateString('zh-CN')}

@@ -2,6 +2,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ShortLinkService } from '@/lib/shortlink-service';
 import { validateSessionFromRequest } from '@/lib/auth';
 
+// 数据转换函数：将 Prisma 数据转换为前端期望的格式
+function transformLinkData(link: any) {
+  return {
+    id: link.id,
+    short_code: link.shortCode,
+    original_url: link.originalUrl,
+    title: link.title,
+    description: link.description,
+    clicks: link.clicks,
+    created_at: link.createdAt.toISOString(),
+    updated_at: link.updatedAt.toISOString(),
+    expires_at: link.expiresAt ? link.expiresAt.toISOString() : null,
+    is_active: link.isActive,
+    user_ip: link.userIp,
+    user_agent: link.userAgent
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     // 验证管理员权限
@@ -16,11 +34,17 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
 
-    const result = ShortLinkService.getAllLinks(page, limit);
+    const result = await ShortLinkService.getAllLinks(page, limit);
+    
+    // 转换数据格式
+    const transformedResult = {
+      ...result,
+      links: result.links.map(transformLinkData)
+    };
     
     return NextResponse.json({
       success: true,
-      data: result
+      data: transformedResult
     });
   } catch {
     return NextResponse.json({
@@ -57,7 +81,7 @@ export async function POST(request: NextRequest) {
                     'unknown';
     const userAgent = request.headers.get('user-agent') || 'unknown';
 
-    const link = ShortLinkService.createShortLink({
+    const link = await ShortLinkService.createShortLink({
       original_url,
       title,
       description,
@@ -69,7 +93,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: link
+      data: transformLinkData(link)
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : '创建短链接失败';

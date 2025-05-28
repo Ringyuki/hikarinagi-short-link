@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 导出数据
-    const exportData = DataService.exportData();
+    const exportData = await DataService.exportData();
 
     // 生成文件名
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];

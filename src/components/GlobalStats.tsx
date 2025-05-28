@@ -20,6 +20,7 @@ interface GlobalStatsData {
   daily_clicks: Array<{
     date: string;
     clicks: number;
+    id?: string;
   }>;
 }
 
@@ -54,9 +55,10 @@ export function GlobalStats() {
     return <div className="text-center py-8">无法加载统计数据</div>;
   }
 
-  const chartData = stats.daily_clicks.map(item => ({
+  const chartData = stats.daily_clicks.map((item, index) => ({
     date: new Date(item.date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }),
-    clicks: item.clicks
+    clicks: item.clicks,
+    id: item.id || `${item.date}-${index}`
   })).reverse();
 
   return (
@@ -143,7 +145,7 @@ export function GlobalStats() {
               <p className="text-gray-500">暂无链接数据</p>
             ) : (
               stats.top_links.map((link, index) => (
-                <div key={link.short_code} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div key={`${link.short_code}-${index}`} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <div className="flex items-center space-x-3">
                     <Badge variant="outline" className="w-8 h-8 rounded-full flex items-center justify-center">
                       {index + 1}
