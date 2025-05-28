@@ -1,7 +1,6 @@
 import prisma from './prisma'
 import type { Prisma } from '../generated/prisma'
 
-// 简化的类型定义
 export interface Link {
   id: number
   shortCode: string
@@ -76,7 +75,10 @@ export class DatabaseService {
 
   static async getLinkByShortCode(shortCode: string) {
     return await prisma.link.findUnique({
-      where: { shortCode },
+      where: { 
+        shortCode,
+        isActive: true, // 只查询活跃的链接，不过滤过期时间
+      },
     })
   }
 
@@ -97,14 +99,11 @@ export class DatabaseService {
     
     const [links, total] = await Promise.all([
       prisma.link.findMany({
-        where: { isActive: true },
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
       }),
-      prisma.link.count({
-        where: { isActive: true },
-      }),
+      prisma.link.count(),
     ])
 
     return {
@@ -129,6 +128,22 @@ export class DatabaseService {
     return await prisma.link.update({
       where: { id },
       data: { isActive: false },
+    })
+  }
+
+  // 硬删除链接（物理删除）
+  static async hardDeleteLink(id: number) {
+    return await prisma.link.delete({
+      where: { id },
+    })
+  }
+
+  // 批量硬删除链接
+  static async hardDeleteLinks(ids: number[]) {
+    return await prisma.link.deleteMany({
+      where: {
+        id: { in: ids },
+      },
     })
   }
 
@@ -437,6 +452,14 @@ export class DatabaseService {
       })
       console.log('默认管理员账号已创建: admin/admin123')
     }
+  }
+
+  // 检查短码是否存在（包括已删除的链接），用于唯一性验证
+  static async checkShortCodeExists(shortCode: string) {
+    return await prisma.link.findUnique({
+      where: { shortCode },
+      select: { id: true }
+    })
   }
 }
 

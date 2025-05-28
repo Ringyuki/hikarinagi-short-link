@@ -1,38 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ShortLinkService } from '@/lib/shortlink-service';
 import { validateSessionFromRequest } from '@/lib/auth';
 import DatabaseService from '@/lib/database-service';
 
 interface RouteParams {
   params: Promise<{ id: string }>
-}
-
-// 数据转换函数：将 Prisma 数据转换为前端期望的格式
-function transformLinkData(link: any) {
-  return {
-    id: link.id,
-    short_code: link.shortCode,
-    original_url: link.originalUrl,
-    title: link.title,
-    description: link.description,
-    clicks: link.clicks,
-    created_at: link.createdAt.toISOString(),
-    updated_at: link.updatedAt.toISOString(),
-    expires_at: link.expiresAt ? link.expiresAt.toISOString() : null,
-    is_active: link.isActive,
-    user_ip: link.userIp,
-    user_agent: link.userAgent,
-    clickAnalytics: link.clickAnalytics ? link.clickAnalytics.map((click: any) => ({
-      id: click.id,
-      linkId: click.linkId,
-      clickedAt: click.clickedAt.toISOString(),
-      ipAddress: click.ipAddress,
-      userAgent: click.userAgent,
-      referer: click.referer,
-      country: click.country,
-      city: click.city
-    })) : undefined
-  };
 }
 
 export async function GET(
@@ -67,7 +38,6 @@ export async function GET(
       }, { status: 404 });
     }
 
-    // 转换数据格式以匹配前端期望
     const transformedLink = {
       id: link.id,
       short_code: link.shortCode,
@@ -159,12 +129,25 @@ export async function DELETE(
       }, { status: 400 });
     }
 
-    await DatabaseService.deleteLink(linkId);
+    // 检查是否为硬删除
+    const { searchParams } = new URL(request.url);
+    const hard = searchParams.get('hard') === 'true';
 
-    return NextResponse.json({
-      success: true,
-      message: '链接删除成功'
-    });
+    if (hard) {
+      // 硬删除（物理删除）
+      await DatabaseService.hardDeleteLink(linkId);
+      return NextResponse.json({
+        success: true,
+        message: '链接已永久删除'
+      });
+    } else {
+      // 软删除
+      await DatabaseService.deleteLink(linkId);
+      return NextResponse.json({
+        success: true,
+        message: '链接已删除'
+      });
+    }
 
   } catch (error) {
     console.error('删除链接失败:', error);

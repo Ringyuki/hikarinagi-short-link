@@ -53,7 +53,8 @@ export class ShortLinkService {
 
     // 如果提供了自定义代码，先检查是否可用
     if (data.custom_code) {
-      const existing = await DatabaseService.getLinkByShortCode(data.custom_code);
+      // 检查短码是否已存在（包括已删除的链接）
+      const existing = await DatabaseService.checkShortCodeExists(data.custom_code);
       if (existing) {
         throw new Error('自定义短代码已存在');
       }
@@ -62,7 +63,8 @@ export class ShortLinkService {
       // 生成随机短代码
       do {
         shortCode = this.generateShortCode();
-        const existing = await DatabaseService.getLinkByShortCode(shortCode);
+        // 检查短码是否已存在（包括已删除的链接）
+        const existing = await DatabaseService.checkShortCodeExists(shortCode);
         if (!existing) break;
         
         attempts++;
@@ -107,6 +109,26 @@ export class ShortLinkService {
       return true;
     } catch {
       return false;
+    }
+  }
+
+  // 硬删除链接（物理删除）
+  static async hardDeleteLink(id: number): Promise<boolean> {
+    try {
+      await DatabaseService.hardDeleteLink(id);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // 批量硬删除链接
+  static async hardDeleteLinks(ids: number[]): Promise<{ deletedCount: number }> {
+    try {
+      const result = await DatabaseService.hardDeleteLinks(ids);
+      return { deletedCount: result.count };
+    } catch {
+      return { deletedCount: 0 };
     }
   }
 

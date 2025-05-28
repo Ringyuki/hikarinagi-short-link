@@ -20,7 +20,7 @@ export async function GET(
     }
 
     // 检查链接是否过期
-    if (ShortLinkService.isLinkExpired(link)) {
+    if (link.expiresAt && new Date() > new Date(link.expiresAt)) {
       return NextResponse.redirect(new URL('/expired', request.url));
     }
 
@@ -37,7 +37,7 @@ export async function GET(
       referer: referer
     });
 
-    // 重定向到原始链接（使用 Prisma 返回的字段名）
+    // 重定向到原始链接
     return NextResponse.redirect(link.originalUrl);
   } catch {
     return NextResponse.redirect(new URL('/error', request.url));

@@ -18,7 +18,6 @@ interface LinkData {
   userAgent?: string | null;
 }
 
-// 数据转换函数：将 Prisma 数据转换为前端期望的格式
 function transformLinkData(link: any) {
   return {
     id: link.id,
@@ -52,7 +51,6 @@ export async function GET(request: NextRequest) {
 
     const result = await DatabaseService.getAllLinks(page, limit);
 
-    // 转换数据格式以匹配前端期望
     const transformedLinks = result.links.map((link: LinkData) => ({
       id: link.id,
       short_code: link.shortCode,

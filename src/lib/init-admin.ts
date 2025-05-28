@@ -4,7 +4,6 @@ export async function initializeAdmin() {
   try {
     console.log('[Init] 开始初始化管理员账户...');
     
-    // 检查是否已存在管理员
     const existingAdmin = await DatabaseService.getAdminUser('admin');
     
     if (!existingAdmin) {

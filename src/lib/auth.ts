@@ -77,9 +77,7 @@ export async function createSession(username: string) {
 }
 
 // 验证会话
-export async function validateSession(): Promise<boolean> {
-  console.log('[Auth] validateSession - 开始验证会话');
-  
+export async function validateSession(): Promise<boolean> {  
   try {
     const cookieStore = await cookies();
     const sessionCookie = cookieStore.get(SESSION_KEY);
@@ -89,9 +87,7 @@ export async function validateSession(): Promise<boolean> {
       return false;
     }
     
-    console.log('[Auth] validateSession - 找到会话 cookie，解析中...');
     const sessionData = JSON.parse(sessionCookie.value);
-    console.log('[Auth] validateSession - 会话数据:', sessionData);
     
     // 检查是否过期
     if (Date.now() > sessionData.expiresAt) {
@@ -100,7 +96,6 @@ export async function validateSession(): Promise<boolean> {
       return false;
     }
     
-    console.log('[Auth] validateSession - 会话有效');
     return true;
   } catch (error) {
     console.error('[Auth] validateSession - 验证会话时发生错误:', error);
@@ -109,9 +104,7 @@ export async function validateSession(): Promise<boolean> {
 }
 
 // 销毁会话
-export async function destroySession() {
-  console.log('[Auth] destroySession - 销毁会话');
-  
+export async function destroySession() {  
   try {
     const cookieStore = await cookies();
     cookieStore.delete(SESSION_KEY);
@@ -122,9 +115,7 @@ export async function destroySession() {
 }
 
 // 从请求中验证会话
-export function validateSessionFromRequest(request: NextRequest): boolean {
-  console.log('[Auth] validateSessionFromRequest - 从请求中验证会话');
-  
+export function validateSessionFromRequest(request: NextRequest): boolean {  
   try {
     const sessionCookie = request.cookies.get(SESSION_KEY);
     
@@ -133,17 +124,13 @@ export function validateSessionFromRequest(request: NextRequest): boolean {
       return false;
     }
     
-    console.log('[Auth] validateSessionFromRequest - 找到会话 cookie，解析中...');
-    const sessionData = JSON.parse(sessionCookie.value);
-    console.log('[Auth] validateSessionFromRequest - 会话数据:', sessionData);
-    
+    const sessionData = JSON.parse(sessionCookie.value);    
     // 检查是否过期
     if (Date.now() > sessionData.expiresAt) {
       console.log('[Auth] validateSessionFromRequest - 会话已过期');
       return false;
     }
     
-    console.log('[Auth] validateSessionFromRequest - 会话有效');
     return true;
   } catch (error) {
     console.error('[Auth] validateSessionFromRequest - 验证会话时发生错误:', error);
