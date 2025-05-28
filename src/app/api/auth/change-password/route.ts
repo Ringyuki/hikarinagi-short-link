@@ -28,7 +28,8 @@ export async function POST(request: NextRequest) {
     }
 
     // 验证当前密码
-    if (!validateCredentials('admin', currentPassword)) {
+    const isCurrentPasswordValid = await validateCredentials('admin', currentPassword);
+    if (!isCurrentPasswordValid) {
       return NextResponse.json({
         success: false,
         error: '当前密码错误'
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 更新密码
-    const success = updateAdminPassword('admin', newPassword);
+    const success = await updateAdminPassword('admin', newPassword);
     
     if (success) {
       return NextResponse.json({

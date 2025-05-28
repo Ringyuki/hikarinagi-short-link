@@ -12,7 +12,8 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    if (validateCredentials(username, password)) {
+    const isValidCredentials = await validateCredentials(username, password);
+    if (isValidCredentials) {
       await createSession(username);
       
       return NextResponse.json({
