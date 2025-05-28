@@ -17,7 +17,7 @@
 
 - **前端**: Next.js 15, React 19, TypeScript
 - **样式**: Tailwind CSS 4, shadcn/ui
-- **数据库**: SQLite (better-sqlite3)
+- **数据库**: PostgreSQL
 - **图表**: Recharts
 - **其他**: 数据导入导出, 日期处理, 通知提示
 
@@ -116,7 +116,7 @@ pnpm start
 
 ## 数据库结构
 
-系统使用 SQLite 数据库，包含以下表：
+系统使用 PostgreSQL 数据库，包含以下表：
 
 - `links`: 存储短链接信息
 - `click_analytics`: 存储点击分析数据
