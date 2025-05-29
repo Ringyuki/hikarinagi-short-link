@@ -8,11 +8,8 @@ const SESSION_DURATION = 24 * 60 * 60 * 1000; // 24小时
 
 // 验证登录凭据
 export async function validateCredentials(username: string, password: string): Promise<boolean> {
-  console.log('[Auth] validateCredentials - 开始验证凭据, 用户名:', username);
-  
   try {
     const user = await DatabaseService.validateAdmin(username, password);
-    console.log('[Auth] validateCredentials - 数据库验证结果:', !!user);
     return !!user;
   } catch (error) {
     console.error('[Auth] validateCredentials - 验证过程中发生错误:', error);
@@ -21,12 +18,9 @@ export async function validateCredentials(username: string, password: string): P
 }
 
 // 获取管理员用户
-export async function getAdminUser(username: string) {
-  console.log('[Auth] getAdminUser - 获取管理员用户:', username);
-  
+export async function getAdminUser(username: string) {  
   try {
     const user = await DatabaseService.getAdminUser(username);
-    console.log('[Auth] getAdminUser - 用户查询结果:', user ? '找到用户' : '用户不存在');
     return user;
   } catch (error) {
     console.error('[Auth] getAdminUser - 查询用户时发生错误:', error);
@@ -35,12 +29,9 @@ export async function getAdminUser(username: string) {
 }
 
 // 更新管理员密码
-export async function updateAdminPassword(username: string, newPassword: string): Promise<boolean> {
-  console.log('[Auth] updateAdminPassword - 更新密码, 用户名:', username);
-  
+export async function updateAdminPassword(username: string, newPassword: string): Promise<boolean> {  
   try {
     await DatabaseService.changeAdminPassword(username, newPassword);
-    console.log('[Auth] updateAdminPassword - 密码更新成功');
     return true;
   } catch (error) {
     console.error('[Auth] updateAdminPassword - 密码更新失败:', error);
@@ -49,9 +40,7 @@ export async function updateAdminPassword(username: string, newPassword: string)
 }
 
 // 创建会话
-export async function createSession(username: string) {
-  console.log('[Auth] createSession - 创建会话, 用户名:', username);
-  
+export async function createSession(username: string) {  
   try {
     const cookieStore = await cookies();
     const sessionData = {
@@ -59,9 +48,7 @@ export async function createSession(username: string) {
       loginTime: Date.now(),
       expiresAt: Date.now() + SESSION_DURATION
     };
-    
-    console.log('[Auth] createSession - 会话数据:', sessionData);
-    
+        
     cookieStore.set(SESSION_KEY, JSON.stringify(sessionData), {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -69,7 +56,6 @@ export async function createSession(username: string) {
       maxAge: SESSION_DURATION / 1000
     });
     
-    console.log('[Auth] createSession - 会话创建完成');
   } catch (error) {
     console.error('[Auth] createSession - 创建会话时发生错误:', error);
     throw error;
@@ -83,7 +69,6 @@ export async function validateSession(): Promise<boolean> {
     const sessionCookie = cookieStore.get(SESSION_KEY);
     
     if (!sessionCookie) {
-      console.log('[Auth] validateSession - 未找到会话 cookie');
       return false;
     }
     
@@ -91,7 +76,6 @@ export async function validateSession(): Promise<boolean> {
     
     // 检查是否过期
     if (Date.now() > sessionData.expiresAt) {
-      console.log('[Auth] validateSession - 会话已过期');
       await destroySession();
       return false;
     }
@@ -108,7 +92,6 @@ export async function destroySession() {
   try {
     const cookieStore = await cookies();
     cookieStore.delete(SESSION_KEY);
-    console.log('[Auth] destroySession - 会话销毁完成');
   } catch (error) {
     console.error('[Auth] destroySession - 销毁会话时发生错误:', error);
   }
@@ -120,14 +103,12 @@ export function validateSessionFromRequest(request: NextRequest): boolean {
     const sessionCookie = request.cookies.get(SESSION_KEY);
     
     if (!sessionCookie) {
-      console.log('[Auth] validateSessionFromRequest - 请求中未找到会话 cookie');
       return false;
     }
     
     const sessionData = JSON.parse(sessionCookie.value);    
     // 检查是否过期
     if (Date.now() > sessionData.expiresAt) {
-      console.log('[Auth] validateSessionFromRequest - 会话已过期');
       return false;
     }
     
