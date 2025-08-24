@@ -502,93 +502,103 @@ export class DatabaseService {
   }
 
   static async importData(data: ExportData, options?: { overwriteExisting?: boolean }) {
-    return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      let importedLinks = 0
-      let skippedLinks = 0
-      let importedClicks = 0
-      let skippedClicks = 0
+    let importedLinks = 0
+    let skippedLinks = 0
+    let importedClicks = 0
+    let skippedClicks = 0
 
-      if (options?.overwriteExisting) {
-        await tx.clickAnalytics.deleteMany({})
-        await tx.link.deleteMany({})
-        // 保留管理员用户（避免锁死），如需覆盖可按需再加选项
-      }
+    // 覆盖模式：先清空，单独小事务
+    if (options?.overwriteExisting) {
+      await prisma.$transaction([
+        prisma.clickAnalytics.deleteMany({}),
+        prisma.link.deleteMany({}),
+      ])
+    }
 
-      // 建立导出ID -> 新ID 的映射
-      const idMap = new Map<number, number>()
+    // 建立导出ID -> 新ID 的映射
+    const idMap = new Map<number, number>()
 
-      for (const link of data.data.links || []) {
-        try {
-          const l = link as unknown as Record<string, unknown>
-          const saved = await tx.link.upsert({
-            where: { shortCode: l.shortCode as string },
-            update: {
-              originalUrl: l.originalUrl as string,
-              title: (l.title as string | null) ?? undefined,
-              description: (l.description as string | null) ?? undefined,
-              clicks: typeof l.clicks === 'number' ? (l.clicks as number) : 0,
-              expiresAt: l.expiresAt ? new Date(l.expiresAt as string) : null,
-              isActive: (l.isActive as boolean) ?? true,
-              userIp: (l.userIp as string | null) ?? undefined,
-              userAgent: (l.userAgent as string | null) ?? undefined,
-            },
-            create: {
-              shortCode: l.shortCode as string,
-              originalUrl: l.originalUrl as string,
-              title: (l.title as string | null) ?? undefined,
-              description: (l.description as string | null) ?? undefined,
-              clicks: typeof l.clicks === 'number' ? (l.clicks as number) : 0,
-              createdAt: new Date(l.createdAt as string),
-              updatedAt: new Date(l.updatedAt as string),
-              expiresAt: l.expiresAt ? new Date(l.expiresAt as string) : null,
-              isActive: (l.isActive as boolean) ?? true,
-              userIp: (l.userIp as string | null) ?? undefined,
-              userAgent: (l.userAgent as string | null) ?? undefined,
-            },
-            select: { id: true },
-          })
-          const sourceId = Number((l.id as number) ?? NaN)
-          if (!Number.isNaN(sourceId)) {
-            idMap.set(sourceId, saved.id)
-          }
-          importedLinks++
-        } catch {
-          skippedLinks++
+    // 导入链接：逐条 upsert（或可批量分组 $transaction 数十条一批）
+    for (const link of data.data.links || []) {
+      try {
+        const l = link as unknown as Record<string, unknown>
+        const saved = await prisma.link.upsert({
+          where: { shortCode: l.shortCode as string },
+          update: {
+            originalUrl: l.originalUrl as string,
+            title: (l.title as string | null) ?? undefined,
+            description: (l.description as string | null) ?? undefined,
+            clicks: typeof l.clicks === 'number' ? (l.clicks as number) : 0,
+            expiresAt: l.expiresAt ? new Date(l.expiresAt as string) : null,
+            isActive: (l.isActive as boolean) ?? true,
+            userIp: (l.userIp as string | null) ?? undefined,
+            userAgent: (l.userAgent as string | null) ?? undefined,
+          },
+          create: {
+            shortCode: l.shortCode as string,
+            originalUrl: l.originalUrl as string,
+            title: (l.title as string | null) ?? undefined,
+            description: (l.description as string | null) ?? undefined,
+            clicks: typeof l.clicks === 'number' ? (l.clicks as number) : 0,
+            createdAt: new Date(l.createdAt as string),
+            updatedAt: new Date(l.updatedAt as string),
+            expiresAt: l.expiresAt ? new Date(l.expiresAt as string) : null,
+            isActive: (l.isActive as boolean) ?? true,
+            userIp: (l.userIp as string | null) ?? undefined,
+            userAgent: (l.userAgent as string | null) ?? undefined,
+          },
+          select: { id: true },
+        })
+        const sourceId = Number((l.id as number) ?? NaN)
+        if (!Number.isNaN(sourceId)) {
+          idMap.set(sourceId, saved.id)
         }
+        importedLinks++
+      } catch {
+        skippedLinks++
       }
+    }
 
-      // 导入点击记录（基于映射后的 linkId）
-      for (const ca of data.data.clickAnalytics || []) {
-        try {
-          const c = ca as unknown as Record<string, unknown>
-          const sourceLinkId = Number(c.linkId as number)
-          const targetLinkId = idMap.get(sourceLinkId)
-          if (!targetLinkId) {
-            skippedClicks++
-            continue
-          }
-          await tx.clickAnalytics.create({
-            data: {
-              linkId: targetLinkId,
-              clickedAt: new Date(c.clickedAt as string),
-              ipAddress: (c.ipAddress as string | null) ?? undefined,
-              userAgent: (c.userAgent as string | null) ?? undefined,
-              referer: (c.referer as string | null) ?? undefined,
-              country: (c.country as string | null) ?? undefined,
-              city: (c.city as string | null) ?? undefined,
-            },
-          })
-          importedClicks++
-        } catch {
-          skippedClicks++
-        }
+    // 预处理点击记录，按批次 createMany
+    const prepared: Array<Prisma.ClickAnalyticsCreateManyInput> = []
+    for (const ca of data.data.clickAnalytics || []) {
+      const c = ca as unknown as Record<string, unknown>
+      const sourceLinkId = Number(c.linkId as number)
+      const targetLinkId = idMap.get(sourceLinkId)
+      if (!targetLinkId) {
+        skippedClicks++
+        continue
       }
+      prepared.push({
+        linkId: targetLinkId,
+        clickedAt: new Date(c.clickedAt as string),
+        ipAddress: (c.ipAddress as string | null) ?? undefined,
+        userAgent: (c.userAgent as string | null) ?? undefined,
+        referer: (c.referer as string | null) ?? undefined,
+        country: (c.country as string | null) ?? undefined,
+        city: (c.city as string | null) ?? undefined,
+        // 扩展地理信息（若旧备份无这些字段则为 undefined）
+        countryName: (c as any).countryName ?? undefined,
+        countryId: (c as any).countryId ?? undefined,
+        provinceName: (c as any).provinceName ?? undefined,
+        provinceId: (c as any).provinceId ?? undefined,
+        cityName: (c as any).cityName ?? undefined,
+        cityId: (c as any).cityId ?? undefined,
+      })
+    }
 
-      return {
-        imported: { links: importedLinks, clickAnalytics: importedClicks },
-        skipped: { links: skippedLinks, clickAnalytics: skippedClicks },
-      }
-    })
+    const chunkSize = 1000
+    for (let i = 0; i < prepared.length; i += chunkSize) {
+      const chunk = prepared.slice(i, i + chunkSize)
+      if (chunk.length === 0) continue
+      const res = await prisma.clickAnalytics.createMany({ data: chunk })
+      importedClicks += res.count
+    }
+
+    return {
+      imported: { links: importedLinks, clickAnalytics: importedClicks },
+      skipped: { links: skippedLinks, clickAnalytics: skippedClicks },
+    }
   }
 
   // 初始化默认管理员
