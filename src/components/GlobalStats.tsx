@@ -22,6 +22,7 @@ interface GlobalStatsData {
     clicks: number;
     id?: string;
   }>;
+  top_referrers?: Array<{ referer: string; clicks: number; id?: string }>;
 }
 
 export function GlobalStats() {
@@ -164,6 +165,29 @@ export function GlobalStats() {
               ))
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* 来源排行 */}
+      <Card>
+        <CardHeader>
+          <CardTitle>来源排行（最近30天）</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!stats.top_referrers || stats.top_referrers.length === 0 ? (
+            <p className="text-gray-500">暂无来源数据</p>
+          ) : (
+            <div className="space-y-2">
+              {stats.top_referrers.map((r, i) => (
+                <div key={r.id || i} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                  <span className="text-sm truncate max-w-[70%]" title={r.referer}>
+                    {r.referer}
+                  </span>
+                  <Badge variant="secondary">{r.clicks} 次</Badge>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -1,6 +1,31 @@
 import prisma from './prisma'
 import type { Prisma } from '../generated/prisma'
 
+// Referer 聚合级别：domain | domain_path1 | domain_path2
+const REF_AGG_LEVEL = (process.env.REF_AGG_LEVEL || 'domain').toLowerCase()
+
+function buildReferrerAggregationExpr(): string {
+  // 去协议 -> 去查询 -> host/path1/path2
+  const urlNoProto = "regexp_replace(referer, '^[a-zA-Z]+://', '')"
+  const urlNoQuery = `split_part(${urlNoProto}, '?', 1)`
+  const host = `split_part(${urlNoQuery}, '/', 1)`
+  const seg1 = `split_part(${urlNoQuery}, '/', 2)`
+  const seg2 = `split_part(${urlNoQuery}, '/', 3)`
+  const seg1Norm = `CASE WHEN ${seg1} ~ '^[0-9]+$' OR ${seg1} ~ '^[0-9a-fA-F-]{8,}$' THEN ':id' ELSE ${seg1} END`
+  const seg2Norm = `CASE WHEN ${seg2} ~ '^[0-9]+$' OR ${seg2} ~ '^[0-9a-fA-F-]{8,}$' THEN ':id' ELSE ${seg2} END`
+
+  const hostOrDirect = `COALESCE(NULLIF(${host}, ''), 'direct')`
+
+  if (REF_AGG_LEVEL === 'domain_path2') {
+    return `${hostOrDirect} || CASE WHEN NULLIF(${seg1}, '') IS NOT NULL THEN '/' || ${seg1Norm} ELSE '' END || CASE WHEN NULLIF(${seg2}, '') IS NOT NULL THEN '/' || ${seg2Norm} ELSE '' END`
+  }
+  if (REF_AGG_LEVEL === 'domain_path1') {
+    return `${hostOrDirect} || CASE WHEN NULLIF(${seg1}, '') IS NOT NULL THEN '/' || ${seg1Norm} ELSE '' END`
+  }
+  // 默认仅域名
+  return hostOrDirect
+}
+
 export interface Link {
   id: number
   shortCode: string
@@ -282,12 +307,27 @@ export class DatabaseService {
       _count: Number(item.count)
     }))
 
+    // Top Referrers（域名聚合，忽略查询与路径数值结尾；此处聚合为域名）
+    const topReferrersRaw = await prisma.$queryRawUnsafe<Array<{ ref: string; count: bigint }>>(
+      `SELECT ${buildReferrerAggregationExpr()} AS ref, COUNT(*) as count
+       FROM click_analytics
+       WHERE link_id = $1 AND clicked_at >= $2
+       GROUP BY ref
+       ORDER BY count DESC
+       LIMIT 10`,
+      linkId,
+      monthAgo,
+    )
+
+    const topReferrers = topReferrersRaw.map(r => ({ referer: r.ref, clicks: Number(r.count) }))
+
     return {
       totalClicks,
       todayClicks,
       weekClicks,
       monthClicks,
       dailyStats,
+      topReferrers,
     }
   }
 
@@ -350,6 +390,19 @@ export class DatabaseService {
         _count: Number(item.count)
       }))
       
+      // 全局 Top Referrers（域名聚合，最近30天）
+      const topReferrersRaw = await prisma.$queryRawUnsafe<Array<{ ref: string; count: bigint }>>(
+        `SELECT ${buildReferrerAggregationExpr()} AS ref, COUNT(*) as count
+         FROM click_analytics
+         WHERE clicked_at >= $1
+         GROUP BY ref
+         ORDER BY count DESC
+         LIMIT 10`,
+        thirtyDaysAgo,
+      )
+
+      const topReferrers = topReferrersRaw.map(r => ({ referer: r.ref, clicks: Number(r.count) }))
+
       const result = {
         totalLinks,
         activeLinks,
@@ -360,6 +413,7 @@ export class DatabaseService {
         weekClicks,
         topLinks,
         dailyClicks,
+        topReferrers,
       }
       
       return result;

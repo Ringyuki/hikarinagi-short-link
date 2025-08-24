@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ShortLinkService } from '@/lib/shortlink-service';
+import { extractClientIpFromHeaders, geoFromHeaders, refererFromHeaders } from '@/lib/server-ip-geo';
 
 export async function GET(
   request: NextRequest,
@@ -24,17 +25,18 @@ export async function GET(
       return NextResponse.redirect(new URL('/expired', request.url));
     }
 
-    // 记录点击统计
-    const clientIP = request.headers.get('x-forwarded-for') || 
-                    request.headers.get('x-real-ip') || 
-                    'unknown';
+    // 记录点击统计（尽力获取真实 IP 并做 GeoIP）
+    const clientIP = extractClientIpFromHeaders(request.headers);
     const userAgent = request.headers.get('user-agent') || 'unknown';
-    const referer = request.headers.get('referer') || '';
+    const referer = refererFromHeaders(request.headers);
+    const geo = geoFromHeaders(request.headers);
 
     await ShortLinkService.recordClick(link.id, {
       ip_address: clientIP,
       user_agent: userAgent,
-      referer: referer
+      referer: referer,
+      country: geo.country,
+      city: geo.city,
     });
 
     // 重定向到原始链接

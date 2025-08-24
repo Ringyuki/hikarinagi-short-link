@@ -45,7 +45,8 @@ export async function GET(request: NextRequest) {
         clicks: item._count,
         // 使用时间戳和索引生成唯一标识符
         id: `${new Date(item.clickedAt).getTime()}-${index}`
-      }))
+      })),
+      top_referrers: (stats.topReferrers || []).map((r: any, i: number) => ({ referer: r.referer, clicks: r.clicks, id: `ref-${i}` }))
     };
     
     return NextResponse.json({
