@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --port 3001",
     "build": "prisma generate && prisma db push && next build",
-    "start": "next start --port 3001",
+    "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
     "deploy:vercel": "vercel --prod",
