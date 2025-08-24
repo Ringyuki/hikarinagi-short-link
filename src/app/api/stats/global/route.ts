@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateSessionFromRequest } from '@/lib/auth';
+import { validateSessionFromRequestAsync } from '@/lib/auth';
 import DatabaseService from '@/lib/database-service';
 
 interface TopLink {
@@ -17,7 +17,7 @@ interface DailyClick {
 export async function GET(request: NextRequest) {
   try {
     // 验证会话
-    const isValidSession = validateSessionFromRequest(request);
+    const isValidSession = await validateSessionFromRequestAsync(request);
     
     if (!isValidSession) {
       return NextResponse.json({

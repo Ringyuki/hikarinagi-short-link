@@ -1,10 +1,11 @@
 import { cookies } from 'next/headers';
 import { NextRequest } from 'next/server';
 import DatabaseService from './database-service';
+import { signSessionToken, verifySessionToken, SESSION_COOKIE_NAME, DEFAULT_SESSION_DURATION_SECONDS } from './jwt';
 
-// 会话密钥
-const SESSION_KEY = 'admin_session';
-const SESSION_DURATION = 24 * 60 * 60 * 1000; // 24小时
+// 保留旧常量名以兼容原有调用
+const SESSION_KEY = SESSION_COOKIE_NAME;
+const SESSION_DURATION = DEFAULT_SESSION_DURATION_SECONDS * 1000; // 24小时（毫秒）
 
 // 验证登录凭据
 export async function validateCredentials(username: string, password: string): Promise<boolean> {
@@ -43,19 +44,14 @@ export async function updateAdminPassword(username: string, newPassword: string)
 export async function createSession(username: string) {  
   try {
     const cookieStore = await cookies();
-    const sessionData = {
-      username,
-      loginTime: Date.now(),
-      expiresAt: Date.now() + SESSION_DURATION
-    };
-        
-    cookieStore.set(SESSION_KEY, JSON.stringify(sessionData), {
+    const token = await signSessionToken(username);
+    cookieStore.set(SESSION_KEY, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: SESSION_DURATION / 1000
+      maxAge: SESSION_DURATION / 1000,
+      path: '/',
     });
-    
   } catch (error) {
     console.error('[Auth] createSession - 创建会话时发生错误:', error);
     throw error;
@@ -67,19 +63,12 @@ export async function validateSession(): Promise<boolean> {
   try {
     const cookieStore = await cookies();
     const sessionCookie = cookieStore.get(SESSION_KEY);
-    
-    if (!sessionCookie) {
-      return false;
-    }
-    
-    const sessionData = JSON.parse(sessionCookie.value);
-    
-    // 检查是否过期
-    if (Date.now() > sessionData.expiresAt) {
+    if (!sessionCookie) return false;
+    const payload = await verifySessionToken(sessionCookie.value);
+    if (!payload) {
       await destroySession();
       return false;
     }
-    
     return true;
   } catch (error) {
     console.error('[Auth] validateSession - 验证会话时发生错误:', error);
@@ -101,20 +90,26 @@ export async function destroySession() {
 export function validateSessionFromRequest(request: NextRequest): boolean {  
   try {
     const sessionCookie = request.cookies.get(SESSION_KEY);
-    
-    if (!sessionCookie) {
-      return false;
-    }
-    
-    const sessionData = JSON.parse(sessionCookie.value);    
-    // 检查是否过期
-    if (Date.now() > sessionData.expiresAt) {
-      return false;
-    }
-    
-    return true;
+    if (!sessionCookie) return false;
+    // 注意：middleware/route handlers 中不能 await 顶层同步函数；
+    // 这里为兼容原有同步签名，仅做同步存在性校验，实际校验放到中间件与服务端函数。
+    // 大多数调用场景在 Route Handler 中可以使用异步版本，保持向后兼容暂不改签名。
+    return Boolean(sessionCookie.value);
   } catch (error) {
     console.error('[Auth] validateSessionFromRequest - 验证会话时发生错误:', error);
     return false;
   }
-} 
+}  
+
+// 异步版本：基于 JWT 完整校验
+export async function validateSessionFromRequestAsync(request: NextRequest): Promise<boolean> {
+  try {
+    const sessionCookie = request.cookies.get(SESSION_KEY)
+    if (!sessionCookie) return false
+    const payload = await verifySessionToken(sessionCookie.value)
+    return Boolean(payload)
+  } catch (error) {
+    console.error('[Auth] validateSessionFromRequestAsync - 验证会话时发生错误:', error)
+    return false
+  }
+}

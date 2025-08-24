@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateSessionFromRequest } from '@/lib/auth';
+import { validateSessionFromRequestAsync } from '@/lib/auth';
 import DatabaseService from '@/lib/database-service';
 
 interface RouteParams {
@@ -12,7 +12,7 @@ export async function GET(
 ) {
   try {
     // 验证会话
-    if (!validateSessionFromRequest(request)) {
+    if (!(await validateSessionFromRequestAsync(request))) {
       return NextResponse.json({
         success: false,
         error: '未授权访问'

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateSessionFromRequest } from '@/lib/auth';
+import { validateSessionFromRequestAsync } from '@/lib/auth';
 import DatabaseService from '@/lib/database-service';
 
 interface RouteParams {
@@ -12,7 +12,7 @@ export async function GET(
 ) {
   try {
     // 验证会话
-    if (!validateSessionFromRequest(request)) {
+    if (!(await validateSessionFromRequestAsync(request))) {
       return NextResponse.json({
         success: false,
         error: '未授权访问'
@@ -83,7 +83,7 @@ export async function PUT(
 ) {
   try {
     // 验证管理员权限
-    if (!validateSessionFromRequest(request)) {
+    if (!(await validateSessionFromRequestAsync(request))) {
       return NextResponse.json({
         success: false,
         error: '未授权访问'
@@ -93,11 +93,46 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
-    // 暂时返回错误，因为 updateLink 方法还未实现
-    return NextResponse.json({
-      success: false,
-      error: '更新功能暂未实现'
-    }, { status: 501 });
+    const linkId = parseInt(id);
+    if (isNaN(linkId)) {
+      return NextResponse.json({
+        success: false,
+        error: '无效的链接ID'
+      }, { status: 400 });
+    }
+
+    const { original_url, title, description, expires_at, is_active } = body || {};
+
+    if (original_url) {
+      try { new URL(original_url); } catch {
+        return NextResponse.json({ success: false, error: '请输入有效的 URL' }, { status: 400 });
+      }
+    }
+
+    const updated = await DatabaseService.updateLink(linkId, {
+      originalUrl: original_url,
+      title,
+      description,
+      expiresAt: typeof expires_at === 'string' ? new Date(expires_at) : expires_at === null ? null : undefined,
+      isActive: typeof is_active === 'boolean' ? is_active : undefined,
+    });
+
+    const transformed = {
+      id: updated.id,
+      short_code: updated.shortCode,
+      original_url: updated.originalUrl,
+      title: updated.title,
+      description: updated.description,
+      clicks: updated.clicks,
+      created_at: updated.createdAt.toISOString(),
+      updated_at: updated.updatedAt.toISOString(),
+      expires_at: updated.expiresAt?.toISOString() || null,
+      is_active: updated.isActive,
+      user_ip: updated.userIp,
+      user_agent: updated.userAgent,
+    };
+
+    return NextResponse.json({ success: true, data: transformed });
   } catch {
     return NextResponse.json({
       success: false,
@@ -112,7 +147,7 @@ export async function DELETE(
 ) {
   try {
     // 验证会话
-    if (!validateSessionFromRequest(request)) {
+    if (!(await validateSessionFromRequestAsync(request))) {
       return NextResponse.json({
         success: false,
         error: '未授权访问'

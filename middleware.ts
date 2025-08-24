@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { verifySessionToken } from '@/lib/jwt';
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   // 检查是否访问管理页面
   if (request.nextUrl.pathname.startsWith('/admin')) {
     // 检查是否有会话cookie
@@ -13,12 +14,9 @@ export function middleware(request: NextRequest) {
     }
     
     try {
-      // 验证会话是否有效
-      const sessionData = JSON.parse(sessionCookie.value);
-      
-      // 检查是否过期
-      if (Date.now() > sessionData.expiresAt) {
-        // 会话过期，重定向到登录页面
+      // 验证 JWT 是否有效
+      const payload = await verifySessionToken(sessionCookie.value);
+      if (!payload) {
         const response = NextResponse.redirect(new URL('/login', request.url));
         response.cookies.delete('admin_session');
         return response;
@@ -36,4 +34,4 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: ['/admin/:path*']
-}; 
+};

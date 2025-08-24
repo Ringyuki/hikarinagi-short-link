@@ -8,8 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Copy, MoreHorizontal, BarChart3, Trash2, ExternalLink, Eye, Trash, AlertTriangle, TrashIcon } from 'lucide-react';
+import { Copy, MoreHorizontal, BarChart3, Trash2, ExternalLink, Eye, Trash, AlertTriangle, TrashIcon, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { LinkStats } from './LinkStats';
@@ -38,12 +40,20 @@ export function LinkList() {
   const [loading, setLoading] = useState(true);
   const [selectedLink, setSelectedLink] = useState<Link | null>(null);
   const [showStats, setShowStats] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
   const [cleanupStats, setCleanupStats] = useState<CleanupStats | null>(null);
   const [showCleanupDialog, setShowCleanupDialog] = useState(false);
   const [cleanupLoading, setCleanupLoading] = useState(false);
   const [selectedLinks, setSelectedLinks] = useState<number[]>([]);
   const [showBatchDeleteDialog, setShowBatchDeleteDialog] = useState(false);
   const [batchDeleteLoading, setBatchDeleteLoading] = useState(false);
+
+  const [editForm, setEditForm] = useState<{ original_url: string; title: string; description: string; expires_at: string; }>({
+    original_url: '',
+    title: '',
+    description: '',
+    expires_at: '',
+  });
 
   const fetchLinks = async () => {
     try {
@@ -174,6 +184,44 @@ export function LinkList() {
   const openStats = (link: Link) => {
     setSelectedLink(link);
     setShowStats(true);
+  };
+
+  const openEdit = (link: Link) => {
+    setSelectedLink(link);
+    setEditForm({
+      original_url: link.original_url,
+      title: link.title || '',
+      description: link.description || '',
+      expires_at: link.expires_at ? new Date(link.expires_at).toISOString().slice(0, 16) : '',
+    });
+    setShowEdit(true);
+  };
+
+  const submitEdit = async () => {
+    if (!selectedLink) return;
+    try {
+      const res = await fetch(`/api/links/${selectedLink.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          original_url: editForm.original_url || undefined,
+          title: editForm.title || undefined,
+          description: editForm.description || undefined,
+          expires_at: editForm.expires_at || undefined,
+        }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        toast.success('更新成功');
+        setShowEdit(false);
+        setSelectedLink(null);
+        fetchLinks();
+      } else {
+        toast.error(result.error || '更新失败');
+      }
+    } catch {
+      toast.error('网络错误');
+    }
   };
 
   const isExpired = (expiresAt?: string) => {
@@ -335,6 +383,10 @@ export function LinkList() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent>
+                            <DropdownMenuItem onClick={() => openEdit(link)}>
+                              <Pencil className="h-4 w-4 mr-2" />
+                              编辑链接
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => openStats(link)}>
                               <BarChart3 className="h-4 w-4 mr-2" />
                               查看统计
@@ -383,6 +435,37 @@ export function LinkList() {
           {selectedLink && (
             <LinkStats linkId={selectedLink.id} />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 编辑对话框 */}
+      <Dialog open={showEdit} onOpenChange={setShowEdit}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>编辑链接 {selectedLink ? `- ${selectedLink.short_code}` : ''}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-original">原始链接</Label>
+              <Input id="edit-original" value={editForm.original_url} onChange={(e) => setEditForm(p => ({ ...p, original_url: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-title">标题</Label>
+              <Input id="edit-title" value={editForm.title} onChange={(e) => setEditForm(p => ({ ...p, title: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-desc">描述</Label>
+              <Input id="edit-desc" value={editForm.description} onChange={(e) => setEditForm(p => ({ ...p, description: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-exp">过期时间</Label>
+              <Input id="edit-exp" type="datetime-local" value={editForm.expires_at} onChange={(e) => setEditForm(p => ({ ...p, expires_at: e.target.value }))} />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setShowEdit(false)}>取消</Button>
+              <Button onClick={submitEdit}>保存</Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

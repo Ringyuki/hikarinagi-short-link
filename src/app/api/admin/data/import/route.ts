@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DataService, ExportData } from '@/lib/data-service';
-import { validateSessionFromRequest } from '@/lib/auth';
+import { validateSessionFromRequestAsync } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
     // 验证管理员权限
-    const isAuthenticated = validateSessionFromRequest(request);
+    const isAuthenticated = await validateSessionFromRequestAsync(request);
     if (!isAuthenticated) {
       return NextResponse.json({ error: '未授权访问' }, { status: 401 });
     }

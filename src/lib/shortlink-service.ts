@@ -12,6 +12,45 @@ interface LinkStats {
 }
 
 export class ShortLinkService {
+  // 尝试抓取页面标题
+  private static async tryFetchPageTitle(targetUrl: string): Promise<string | undefined> {
+    try {
+      const urlObj = new URL(targetUrl);
+      if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') return undefined;
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2000); // 2s 超时
+      const res = await fetch(targetUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        },
+        redirect: 'follow',
+        signal: controller.signal,
+      }).catch((error) => {
+        console.error('Failed to fetch page title:', error);
+        return undefined;
+      });
+      clearTimeout(timeout);
+
+      if (!res || !res.ok) {
+        console.error('Failed to fetch page title:', res);
+        return undefined;
+      }
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.toLowerCase().includes('text/html')) {
+        console.error('Failed to fetch page title:', contentType);
+        return undefined;
+      }
+
+      const html = await res.text();
+      const snippet = html.slice(0, 100000); // 限制最大解析体积
+      const match = snippet.match(/<title[^>]*>([^<]*)<\/title>/i);
+      const title = match?.[1]?.trim();
+      return title || undefined;
+    } catch {
+      return undefined;
+    }
+  }
   // 生成短链接
   static generateShortCode(length = 6): string {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -75,11 +114,17 @@ export class ShortLinkService {
       } while (attempts < maxAttempts);
     }
 
+    // 若未提供标题，尝试抓取目标页面标题（失败则忽略）
+    let resolvedTitle = data.title;
+    if (!resolvedTitle) {
+      resolvedTitle = await this.tryFetchPageTitle(data.original_url).catch(() => undefined);
+    }
+
     // 创建链接记录
     return await DatabaseService.createLink({
       shortCode,
       originalUrl: data.original_url,
-      title: data.title,
+      title: resolvedTitle,
       description: data.description,
       expiresAt: data.expires_at ? new Date(data.expires_at) : undefined,
       userIp: data.user_ip,
@@ -146,11 +191,7 @@ export class ShortLinkService {
     country?: string;
     city?: string;
   }): Promise<void> {
-    // 更新点击次数
-    await DatabaseService.updateLinkClicks(link_id);
-
-    // 记录点击分析
-    await DatabaseService.recordClick(link_id, {
+    await (DatabaseService as any).recordClickWithIncrement(link_id, {
       ipAddress: data.ip_address,
       userAgent: data.user_agent,
       referer: data.referer,

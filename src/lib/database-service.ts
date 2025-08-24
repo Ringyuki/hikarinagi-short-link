@@ -74,10 +74,10 @@ export class DatabaseService {
   }
 
   static async getLinkByShortCode(shortCode: string) {
-    return await prisma.link.findUnique({
-      where: { 
+    return await prisma.link.findFirst({
+      where: {
         shortCode,
-        isActive: true, // 只查询活跃的链接，不过滤过期时间
+        isActive: true,
       },
     })
   }
@@ -124,10 +124,56 @@ export class DatabaseService {
     })
   }
 
+  // 事务：点击自增 + 写入点击记录
+  static async recordClickWithIncrement(linkId: number, data: {
+    ipAddress?: string
+    userAgent?: string
+    referer?: string
+    country?: string
+    city?: string
+  }) {
+    await prisma.$transaction([
+      prisma.link.update({
+        where: { id: linkId },
+        data: { clicks: { increment: 1 }, updatedAt: new Date() },
+      }),
+      prisma.clickAnalytics.create({
+        data: {
+          linkId,
+          ipAddress: data.ipAddress,
+          userAgent: data.userAgent,
+          referer: data.referer,
+          country: data.country,
+          city: data.city,
+        },
+      }),
+    ])
+  }
+
   static async deleteLink(id: number) {
     return await prisma.link.update({
       where: { id },
       data: { isActive: false },
+    })
+  }
+
+  // 更新链接（支持更新原始链接及元信息）
+  static async updateLink(id: number, data: {
+    originalUrl?: string
+    title?: string
+    description?: string
+    expiresAt?: Date | null
+    isActive?: boolean
+  }) {
+    return await prisma.link.update({
+      where: { id },
+      data: {
+        originalUrl: data.originalUrl,
+        title: data.title,
+        description: data.description,
+        expiresAt: data.expiresAt,
+        isActive: data.isActive,
+      }
     })
   }
 

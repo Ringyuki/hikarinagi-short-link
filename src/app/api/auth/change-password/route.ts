@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateCredentials, updateAdminPassword, validateSessionFromRequest } from '@/lib/auth';
+import { validateCredentials, updateAdminPassword, validateSessionFromRequestAsync } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
-    // 验证会话
-    if (!validateSessionFromRequest(request)) {
+    // 验证会话（JWT）
+    if (!(await validateSessionFromRequestAsync(request))) {
       return NextResponse.json({
         success: false,
         error: '未授权访问'
