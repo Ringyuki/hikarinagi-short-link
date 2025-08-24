@@ -501,7 +501,7 @@ export class DatabaseService {
     }
   }
 
-  static async importData(data: ExportData, options?: { overwriteExisting?: boolean }) {
+  static async importData(data: ExportData, options?: { overwriteExisting?: boolean; batchSize?: number }) {
     let importedLinks = 0
     let skippedLinks = 0
     let importedClicks = 0
@@ -587,7 +587,7 @@ export class DatabaseService {
       })
     }
 
-    const chunkSize = 1000
+    const chunkSize = options?.batchSize && options.batchSize > 0 ? Math.min(10000, options.batchSize) : 1000
     for (let i = 0; i < prepared.length; i += chunkSize) {
       const chunk = prepared.slice(i, i + chunkSize)
       if (chunk.length === 0) continue
