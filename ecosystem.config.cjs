@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name: 'hikarinagi-short-link',
-      script: 'npm',
+      script: 'pnpm',
       args: 'start',
       cwd: __dirname,
       exec_mode: 'cluster',
@@ -10,6 +10,10 @@ module.exports = {
       watch: false,
       autorestart: true,
       max_memory_restart: '512M',
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3009
+      },
       env_production: {
         NODE_ENV: 'production'
       },

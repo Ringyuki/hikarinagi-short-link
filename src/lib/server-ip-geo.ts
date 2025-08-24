@@ -7,6 +7,12 @@ const IP_FALLBACK_HEADERS = (process.env.IP_FALLBACK_HEADERS || 'x-forwarded-for
   .filter(Boolean)
 const COUNTRY_HEADER = (process.env.COUNTRY_HEADER || 'cf-ipcountry').toLowerCase()
 const CITY_HEADER = (process.env.CITY_HEADER || '').toLowerCase()
+const COUNTRY_NAME_HEADER = (process.env.COUNTRY_NAME_HEADER || 'country_name').toLowerCase()
+const COUNTRY_ID_HEADER = (process.env.COUNTRY_ID_HEADER || 'country_id').toLowerCase()
+const PROVINCE_NAME_HEADER = (process.env.PROVINCE_NAME_HEADER || 'province_name').toLowerCase()
+const PROVINCE_ID_HEADER = (process.env.PROVINCE_ID_HEADER || 'province_id').toLowerCase()
+const CITY_NAME_HEADER = (process.env.CITY_NAME_HEADER || 'city_name').toLowerCase()
+const CITY_ID_HEADER = (process.env.CITY_ID_HEADER || 'city_id').toLowerCase()
 const REFERER_HEADER = (process.env.REFERER_HEADER || 'referer').toLowerCase()
 
 export function extractClientIpFromHeaders(headers: Headers): string {
@@ -49,10 +55,25 @@ export function geoLookup(ip: string): { country?: string; city?: string } {
   return {}
 }
 
-export function geoFromHeaders(headers: Headers): { country?: string; city?: string } {
+export function geoFromHeaders(headers: Headers): {
+  country?: string
+  city?: string
+  countryName?: string
+  countryId?: string
+  provinceName?: string
+  provinceId?: string
+  cityName?: string
+  cityId?: string
+} {
   const country = (COUNTRY_HEADER && headers.get(COUNTRY_HEADER)) || undefined
   const city = (CITY_HEADER && headers.get(CITY_HEADER)) || undefined
-  return { country, city }
+  const countryName = (COUNTRY_NAME_HEADER && headers.get(COUNTRY_NAME_HEADER)) || undefined
+  const countryId = (COUNTRY_ID_HEADER && headers.get(COUNTRY_ID_HEADER)) || undefined
+  const provinceName = (PROVINCE_NAME_HEADER && headers.get(PROVINCE_NAME_HEADER)) || undefined
+  const provinceId = (PROVINCE_ID_HEADER && headers.get(PROVINCE_ID_HEADER)) || undefined
+  const cityName = (CITY_NAME_HEADER && headers.get(CITY_NAME_HEADER)) || undefined
+  const cityId = (CITY_ID_HEADER && headers.get(CITY_ID_HEADER)) || undefined
+  return { country, city, countryName, countryId, provinceName, provinceId, cityName, cityId }
 }
 
 export function refererFromHeaders(headers: Headers): string {

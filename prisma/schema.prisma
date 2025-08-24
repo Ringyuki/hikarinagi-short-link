@@ -40,6 +40,12 @@ model ClickAnalytics {
   referer   String?
   country   String?
   city      String?
+  countryName  String? @map("country_name")
+  countryId    String? @map("country_id")
+  provinceName String? @map("province_name")
+  provinceId   String? @map("province_id")
+  cityName     String? @map("city_name")
+  cityId       String? @map("city_id")
 
   // 关联到链接
   link Link @relation(fields: [linkId], references: [id], onDelete: Cascade)

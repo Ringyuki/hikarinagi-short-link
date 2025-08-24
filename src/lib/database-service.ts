@@ -156,6 +156,12 @@ export class DatabaseService {
     referer?: string
     country?: string
     city?: string
+    countryName?: string
+    countryId?: string
+    provinceName?: string
+    provinceId?: string
+    cityName?: string
+    cityId?: string
   }) {
     await prisma.$transaction([
       prisma.link.update({
@@ -170,6 +176,12 @@ export class DatabaseService {
           referer: data.referer,
           country: data.country,
           city: data.city,
+          countryName: data.countryName,
+          countryId: data.countryId,
+          provinceName: data.provinceName,
+          provinceId: data.provinceId,
+          cityName: data.cityName,
+          cityId: data.cityId,
         },
       }),
     ])
@@ -241,6 +253,12 @@ export class DatabaseService {
     referer?: string
     country?: string
     city?: string
+    countryName?: string
+    countryId?: string
+    provinceName?: string
+    provinceId?: string
+    cityName?: string
+    cityId?: string
   }) {
     return await prisma.clickAnalytics.create({
       data: {
@@ -250,6 +268,12 @@ export class DatabaseService {
         referer: data.referer,
         country: data.country,
         city: data.city,
+        countryName: data.countryName,
+        countryId: data.countryId,
+        provinceName: data.provinceName,
+        provinceId: data.provinceId,
+        cityName: data.cityName,
+        cityId: data.cityId,
       },
     })
   }
@@ -477,40 +501,93 @@ export class DatabaseService {
     }
   }
 
-  static async importData(data: ExportData) {
-    // 在事务中执行导入
+  static async importData(data: ExportData, options?: { overwriteExisting?: boolean }) {
     return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      let imported = 0
-      let skipped = 0
+      let importedLinks = 0
+      let skippedLinks = 0
+      let importedClicks = 0
+      let skippedClicks = 0
 
-      // 导入链接
+      if (options?.overwriteExisting) {
+        await tx.clickAnalytics.deleteMany({})
+        await tx.link.deleteMany({})
+        // 保留管理员用户（避免锁死），如需覆盖可按需再加选项
+      }
+
+      // 建立导出ID -> 新ID 的映射
+      const idMap = new Map<number, number>()
+
       for (const link of data.data.links || []) {
         try {
-          const linkData = link as unknown as Record<string, unknown>;
-          await tx.link.upsert({
-            where: { shortCode: linkData.shortCode as string },
-            update: {},
-            create: {
-              shortCode: linkData.shortCode as string,
-              originalUrl: linkData.originalUrl as string,
-              title: linkData.title as string | undefined,
-              description: linkData.description as string | undefined,
-              clicks: (linkData.clicks as number) || 0,
-              createdAt: new Date(linkData.createdAt as string),
-              updatedAt: new Date(linkData.updatedAt as string),
-              expiresAt: linkData.expiresAt ? new Date(linkData.expiresAt as string) : null,
-              isActive: (linkData.isActive as boolean) ?? true,
-              userIp: linkData.userIp as string | undefined,
-              userAgent: linkData.userAgent as string | undefined,
+          const l = link as unknown as Record<string, unknown>
+          const saved = await tx.link.upsert({
+            where: { shortCode: l.shortCode as string },
+            update: {
+              originalUrl: l.originalUrl as string,
+              title: (l.title as string | null) ?? undefined,
+              description: (l.description as string | null) ?? undefined,
+              clicks: typeof l.clicks === 'number' ? (l.clicks as number) : 0,
+              expiresAt: l.expiresAt ? new Date(l.expiresAt as string) : null,
+              isActive: (l.isActive as boolean) ?? true,
+              userIp: (l.userIp as string | null) ?? undefined,
+              userAgent: (l.userAgent as string | null) ?? undefined,
             },
+            create: {
+              shortCode: l.shortCode as string,
+              originalUrl: l.originalUrl as string,
+              title: (l.title as string | null) ?? undefined,
+              description: (l.description as string | null) ?? undefined,
+              clicks: typeof l.clicks === 'number' ? (l.clicks as number) : 0,
+              createdAt: new Date(l.createdAt as string),
+              updatedAt: new Date(l.updatedAt as string),
+              expiresAt: l.expiresAt ? new Date(l.expiresAt as string) : null,
+              isActive: (l.isActive as boolean) ?? true,
+              userIp: (l.userIp as string | null) ?? undefined,
+              userAgent: (l.userAgent as string | null) ?? undefined,
+            },
+            select: { id: true },
           })
-          imported++
+          const sourceId = Number((l.id as number) ?? NaN)
+          if (!Number.isNaN(sourceId)) {
+            idMap.set(sourceId, saved.id)
+          }
+          importedLinks++
         } catch {
-          skipped++
+          skippedLinks++
         }
       }
 
-      return { imported, skipped }
+      // 导入点击记录（基于映射后的 linkId）
+      for (const ca of data.data.clickAnalytics || []) {
+        try {
+          const c = ca as unknown as Record<string, unknown>
+          const sourceLinkId = Number(c.linkId as number)
+          const targetLinkId = idMap.get(sourceLinkId)
+          if (!targetLinkId) {
+            skippedClicks++
+            continue
+          }
+          await tx.clickAnalytics.create({
+            data: {
+              linkId: targetLinkId,
+              clickedAt: new Date(c.clickedAt as string),
+              ipAddress: (c.ipAddress as string | null) ?? undefined,
+              userAgent: (c.userAgent as string | null) ?? undefined,
+              referer: (c.referer as string | null) ?? undefined,
+              country: (c.country as string | null) ?? undefined,
+              city: (c.city as string | null) ?? undefined,
+            },
+          })
+          importedClicks++
+        } catch {
+          skippedClicks++
+        }
+      }
+
+      return {
+        imported: { links: importedLinks, clickAnalytics: importedClicks },
+        skipped: { links: skippedLinks, clickAnalytics: skippedClicks },
+      }
     })
   }
 

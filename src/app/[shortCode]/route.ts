@@ -37,6 +37,12 @@ export async function GET(
       referer: referer,
       country: geo.country,
       city: geo.city,
+      country_name: geo.countryName,
+      country_id: geo.countryId,
+      province_name: geo.provinceName,
+      province_id: geo.provinceId,
+      city_name: geo.cityName,
+      city_id: geo.cityId,
     });
 
     // 重定向到原始链接

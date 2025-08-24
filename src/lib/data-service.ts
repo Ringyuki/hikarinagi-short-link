@@ -25,10 +25,10 @@ export class DataService {
       const result = await DatabaseService.importData(data);
       return {
         success: true,
-        message: `成功导入 ${result.imported} 条记录，跳过 ${result.skipped} 条`,
-        imported: result.imported,
-        skipped: result.skipped,
-        errors: []
+        message: `成功导入 链接:${result.imported.links} 点击:${result.imported.clickAnalytics}，跳过 链接:${result.skipped.links} 点击:${result.skipped.clickAnalytics}`,
+        imported: result.imported as unknown as any,
+        skipped: result.skipped as unknown as any,
+        errors: [],
       };
     } catch (error) {
       return {

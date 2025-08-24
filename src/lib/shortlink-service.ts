@@ -190,6 +190,12 @@ export class ShortLinkService {
     referer?: string;
     country?: string;
     city?: string;
+    country_name?: string;
+    country_id?: string;
+    province_name?: string;
+    province_id?: string;
+    city_name?: string;
+    city_id?: string;
   }): Promise<void> {
     await (DatabaseService as any).recordClickWithIncrement(link_id, {
       ipAddress: data.ip_address,
@@ -197,6 +203,12 @@ export class ShortLinkService {
       referer: data.referer,
       country: data.country,
       city: data.city,
+      countryName: data.country_name,
+      countryId: data.country_id,
+      provinceName: data.province_name,
+      provinceId: data.province_id,
+      cityName: data.city_name,
+      cityId: data.city_id,
     });
   }
 
