@@ -54,6 +54,7 @@
   },
   "devDependencies": {
     "@types/geoip-lite": "1.4.4",
+    "@eslint/eslintrc": "^3.1.0",
     "@types/node": "^22.15.23",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.5",
